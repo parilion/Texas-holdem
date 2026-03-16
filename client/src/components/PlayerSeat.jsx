@@ -1,0 +1,34 @@
+import Card from './Card'
+
+export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) {
+  if (!player) return <div className={`seat empty seat-${position}`} />
+
+  const statusLabel = {
+    active: '',
+    folded: '弃牌',
+    allin: 'ALL IN',
+    out: '出局',
+    waiting: '等待',
+  }[player.status] || ''
+
+  return (
+    <div className={`seat seat-${position} ${isCurrentPlayer ? 'active' : ''} ${player.status}`}>
+      <div className="player-name">
+        {player.isDealer && <span className="dealer-btn">D</span>}
+        {player.name}
+        {isMe && ' (我)'}
+      </div>
+      <div className="player-chips">💰 {player.chips}</div>
+      {player.bet > 0 && <div className="player-bet">注: {player.bet}</div>}
+      {statusLabel && <div className="player-status">{statusLabel}</div>}
+      <div className="player-cards">
+        {player.holeCards
+          ? player.holeCards.map((c, i) => <Card key={i} card={c} />)
+          : player.cardCount > 0
+          ? Array(player.cardCount).fill(null).map((_, i) => <Card key={i} faceDown />)
+          : null
+        }
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,152 @@
+.table-wrapper {
+  min-height: 100vh;
+  background: #1a472a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  font-family: 'Segoe UI', sans-serif;
+  color: #fff;
+}
+
+.room-info {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(0,0,0,0.5);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.table {
+  position: relative;
+  width: 700px;
+  height: 400px;
+  background: radial-gradient(ellipse at center, #2d6a4f 0%, #1a472a 70%);
+  border-radius: 50%;
+  border: 8px solid #8B6914;
+  box-shadow: 0 0 40px rgba(0,0,0,0.6), inset 0 0 60px rgba(0,0,0,0.3);
+  margin: 2rem auto;
+}
+
+.table-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.community-cards {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.card {
+  width: 45px;
+  height: 63px;
+  background: white;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+  box-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+  color: #111;
+}
+
+.card.red { color: #cc0000; }
+.card.face-down { background: #2355a0; color: #fff; font-size: 1.5rem; }
+
+.pot { font-size: 1.1rem; font-weight: bold; }
+.phase { font-size: 0.8rem; opacity: 0.7; text-transform: uppercase; }
+.current-bet { font-size: 0.85rem; }
+
+/* 座位位置 */
+.seat { position: absolute; text-align: center; font-size: 0.75rem; width: 90px; }
+.seat-bottom { bottom: -80px; left: 50%; transform: translateX(-50%); }
+.seat-bottom-left { bottom: -20px; left: 5%; }
+.seat-left { top: 50%; left: -110px; transform: translateY(-50%); }
+.seat-top-left { top: -20px; left: 5%; }
+.seat-top { top: -80px; left: 50%; transform: translateX(-50%); }
+.seat-top-right { top: -20px; right: 5%; }
+.seat-right { top: 50%; right: -110px; transform: translateY(-50%); }
+.seat-bottom-right { bottom: -20px; right: 5%; }
+.seat-bottom2 { bottom: -80px; left: 30%; }
+
+.seat.active { outline: 3px solid #f4c430; border-radius: 8px; }
+.seat.folded { opacity: 0.4; }
+
+.player-name { font-weight: bold; white-space: nowrap; }
+.player-chips { color: #f4c430; }
+.player-bet { color: #ff9; font-size: 0.7rem; }
+.player-status { color: #f88; font-size: 0.7rem; }
+.player-cards { display: flex; gap: 2px; justify-content: center; margin-top: 2px; }
+.dealer-btn {
+  background: #f4c430; color: #000; border-radius: 50%;
+  width: 16px; height: 16px; display: inline-flex;
+  align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: bold; margin-right: 3px;
+}
+
+/* 操作面板 */
+.action-panel {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  background: rgba(0,0,0,0.5);
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.action-panel button {
+  padding: 0.7rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.action-panel button:hover { transform: scale(1.05); }
+
+.btn-fold { background: #e74c3c; color: #fff; }
+.btn-check { background: #3498db; color: #fff; }
+.btn-call { background: #27ae60; color: #fff; }
+.btn-raise { background: #f39c12; color: #fff; }
+.btn-allin { background: #8e44ad; color: #fff; }
+
+.raise-group { display: flex; gap: 0.5rem; align-items: center; }
+.raise-group input { width: 100px; }
+
+.start-btn {
+  padding: 1rem 3rem;
+  background: #f4c430;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 2rem;
+}
+
+.error-toast {
+  position: fixed;
+  top: 4rem;
+  right: 1rem;
+  background: rgba(200,50,50,0.9);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  z-index: 100;
+}
