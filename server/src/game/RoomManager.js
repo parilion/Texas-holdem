@@ -7,7 +7,10 @@ export default class RoomManager {
   }
 
   createRoom() {
-    const roomId = Math.random().toString(36).substr(2, 6).toUpperCase()
+    let roomId
+    do {
+      roomId = Math.random().toString(36).substr(2, 6).toUpperCase()
+    } while (this.rooms.has(roomId))
     const room = new GameRoom(roomId)
     this.rooms.set(roomId, room)
     return room
