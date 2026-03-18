@@ -5,7 +5,8 @@ let socket = null
 
 export function getSocket() {
   if (!socket) {
-    socket = io('http://localhost:3001', { autoConnect: false })
+    const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
+    socket = io(serverUrl, { autoConnect: false })
   }
   return socket
 }
