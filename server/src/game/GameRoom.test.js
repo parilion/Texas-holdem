@@ -8,6 +8,14 @@ function makeRoom(playerCount = 2) {
   return room
 }
 
+// 让所有非房主玩家准备好，然后开始游戏
+function startGame(room) {
+  room.players.forEach(p => {
+    if (!p.isDealer) room.setReady(p.id, true)
+  })
+  room.startGame()
+}
+
 test('创建房间初始状态', () => {
   const room = new GameRoom('TEST01')
   expect(room.phase).toBe('WAITING')
@@ -21,14 +29,14 @@ test('添加玩家', () => {
 
 test('开始游戏发手牌', () => {
   const room = makeRoom(2)
-  room.startGame()
+  startGame(room)
   expect(room.phase).toBe('PREFLOP')
   room.players.forEach(p => expect(p.holeCards.length).toBe(2))
 })
 
 test('大小盲注自动下注', () => {
   const room = makeRoom(2)
-  room.startGame()
+  startGame(room)
   const bets = room.players.map(p => p.bet)
   expect(bets).toContain(10) // small blind
   expect(bets).toContain(20) // big blind
@@ -36,7 +44,7 @@ test('大小盲注自动下注', () => {
 
 test('合法的 call 操作', () => {
   const room = makeRoom(2)
-  room.startGame()
+  startGame(room)
   const actingPlayer = room.players[room.currentPlayerIndex]
   const chipsBefore = actingPlayer.chips
   room.handleAction(actingPlayer.id, 'call')
@@ -46,7 +54,7 @@ test('合法的 call 操作', () => {
 
 test('fold 使玩家状态变为 folded', () => {
   const room = makeRoom(2)
-  room.startGame()
+  startGame(room)
   const actingPlayer = room.players[room.currentPlayerIndex]
   room.handleAction(actingPlayer.id, 'fold')
   expect(actingPlayer.status).toBe('folded')
@@ -54,17 +62,92 @@ test('fold 使玩家状态变为 folded', () => {
 
 test('非当前玩家操作被拒绝', () => {
   const room = makeRoom(3)
-  room.startGame()
+  startGame(room)
   const wrongPlayer = room.players[(room.currentPlayerIndex + 1) % room.players.length]
   expect(() => room.handleAction(wrongPlayer.id, 'call')).toThrow()
 })
 
 test('getPublicState 隐藏他人手牌', () => {
   const room = makeRoom(2)
-  room.startGame()
+  startGame(room)
   const state = room.getPublicState('player0')
   const otherPlayer = state.players.find(p => p.id === 'player1')
   expect(otherPlayer.holeCards).toBeNull()
   const self = state.players.find(p => p.id === 'player0')
   expect(self.holeCards).not.toBeNull()
+})
+
+// ——— 翻牌圈推进专项测试 ———
+
+test('2人局：SB跟注后直接进入翻牌圈（无需BB点过牌）', () => {
+  const room = makeRoom(2)
+  startGame(room)
+  // dealer=player0(BB), player1=SB 先行动
+  expect(room.phase).toBe('PREFLOP')
+
+  const sb = room.players[room.currentPlayerIndex]
+  room.handleAction(sb.id, 'call')            // SB 跟注
+  expect(room.phase).toBe('FLOP')             // 无人加注，直接进翻牌圈
+  expect(room.communityCards.length).toBe(3)
+})
+
+test('3人局：UTG/SB各跟注后直接进入翻牌圈', () => {
+  const room = makeRoom(3)
+  startGame(room)
+  // dealer=player0, SB=player1, BB=player2, UTG=player0 先行动
+  expect(room.phase).toBe('PREFLOP')
+
+  const utg = room.players[room.currentPlayerIndex]
+  room.handleAction(utg.id, 'call')           // UTG 跟注
+  expect(room.phase).toBe('PREFLOP')
+
+  const sb = room.players[room.currentPlayerIndex]
+  room.handleAction(sb.id, 'call')            // SB 跟注后直接翻牌
+  expect(room.phase).toBe('FLOP')
+  expect(room.communityCards.length).toBe(3)
+})
+
+test('翻牌圈全员过牌 → 进入转牌圈', () => {
+  const room = makeRoom(2)
+  startGame(room)
+  // 先走完翻前
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'call')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  expect(room.phase).toBe('FLOP')
+
+  // 翻牌圈：两人各过牌
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  expect(room.phase).toBe('TURN')
+  expect(room.communityCards.length).toBe(4)
+})
+
+test('全程过牌到摊牌', () => {
+  const room = makeRoom(2)
+  startGame(room)
+  // 翻前
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'call')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  // 翻牌
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  // 转牌
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  // 河牌
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  expect(room.phase).toBe('SHOWDOWN')
+  expect(room.communityCards.length).toBe(5)
+})
+
+test('一人弃牌 → 另一人赢得底池', () => {
+  const room = makeRoom(2)
+  startGame(room)
+  const folder = room.players[room.currentPlayerIndex]
+  const winner = room.players.find(p => p.id !== folder.id)
+  const chipsBefore = winner.chips
+  room.handleAction(folder.id, 'fold')
+  expect(room.phase).toBe('SHOWDOWN')
+  expect(winner.chips).toBeGreaterThan(chipsBefore)
 })

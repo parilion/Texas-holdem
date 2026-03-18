@@ -135,6 +135,7 @@ export default class GameRoom {
     const actual = Math.min(amount, player.chips)
     player.chips -= actual
     player.bet = actual
+    player.hasActed = true // 盲注视为已行动，无人加注时无需再次行动
     this.pot += actual
     if (player.chips === 0) player.status = 'allin'
   }
