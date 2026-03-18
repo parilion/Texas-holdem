@@ -4,10 +4,18 @@ import Table from './components/Table'
 import './index.css'
 
 export default function App() {
-  const { gameState, roomId, myId, error, createRoom, joinRoom, startGame, doAction } = useGame()
+  const { gameState, roomId, myId, error, kickMessage, setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom } = useGame()
 
   if (!roomId) {
-    return <Lobby onCreateRoom={createRoom} onJoinRoom={joinRoom} error={error} />
+    return (
+      <Lobby
+        onCreateRoom={createRoom}
+        onJoinRoom={joinRoom}
+        error={error}
+        kickMessage={kickMessage}
+        onClearKickMessage={() => setKickMessage(null)}
+      />
+    )
   }
 
   return (
@@ -17,6 +25,9 @@ export default function App() {
       roomId={roomId}
       onAction={doAction}
       onStartGame={startGame}
+      onReady={doReady}
+      onUnready={doUnready}
+      onLeaveRoom={leaveRoom}
       error={error}
     />
   )

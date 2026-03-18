@@ -8,7 +8,8 @@ export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) 
     folded: '弃牌',
     allin: 'ALL IN',
     out: '出局',
-    waiting: '等待',
+    waiting: '未准备',
+    ready: '已准备',
   }[player.status] || ''
 
   return (
@@ -20,7 +21,7 @@ export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) 
       </div>
       <div className="player-chips">💰 {player.chips}</div>
       {player.bet > 0 && <div className="player-bet">注: {player.bet}</div>}
-      {statusLabel && <div className="player-status">{statusLabel}</div>}
+      {statusLabel && !player.isDealer && <div className={`player-status ${player.status === 'ready' ? 'status-ready' : ''}`}>{statusLabel}</div>}
       <div className="player-cards">
         {player.holeCards
           ? player.holeCards.map((c, i) => <Card key={i} card={c} />)

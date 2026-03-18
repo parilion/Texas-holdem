@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './Lobby.css'
 
-export default function Lobby({ onCreateRoom, onJoinRoom, error }) {
+export default function Lobby({ onCreateRoom, onJoinRoom, error, kickMessage, onClearKickMessage }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [mode, setMode] = useState(null) // 'create' | 'join'
@@ -20,6 +20,12 @@ export default function Lobby({ onCreateRoom, onJoinRoom, error }) {
   return (
     <div className="lobby">
       <h1>♠ 德州扑克 ♠</h1>
+      {kickMessage && (
+        <div className="kick-notice">
+          {kickMessage}
+          <button className="kick-close" onClick={onClearKickMessage}>×</button>
+        </div>
+      )}
       {error && <div className="error">{error}</div>}
       <div className="input-group">
         <input
@@ -31,8 +37,8 @@ export default function Lobby({ onCreateRoom, onJoinRoom, error }) {
       </div>
       {!mode && (
         <div className="buttons">
-          <button onClick={() => setMode('create')}>创建房间</button>
-          <button onClick={() => setMode('join')}>加入房间</button>
+          <button className="btn-create" onClick={() => setMode('create')}>创建房间</button>
+          <button className="btn-join" onClick={() => setMode('join')}>加入房间</button>
         </div>
       )}
       {mode === 'create' && (

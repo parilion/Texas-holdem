@@ -56,9 +56,41 @@
 
 .lobby button:hover { transform: scale(1.05); }
 
+.btn-create {
+  background: #27ae60 !important;
+  color: #fff !important;
+}
+
+.btn-join {
+  background: #3498db !important;
+  color: #fff !important;
+}
+
 .error {
   background: rgba(255,50,50,0.8);
   padding: 0.5rem 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
+}
+
+.kick-notice {
+  background: rgba(180, 80, 0, 0.9);
+  color: #fff;
+  padding: 0.75rem 1.2rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid rgba(255, 160, 0, 0.6);
+}
+
+.kick-close {
+  background: transparent !important;
+  color: #fff !important;
+  font-size: 1.1rem !important;
+  padding: 0 0.3rem !important;
+  min-width: unset;
+  transform: none !important;
 }
