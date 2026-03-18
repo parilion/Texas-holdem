@@ -28,8 +28,8 @@ function evaluateFive(cards) {
   let rank, tiebreakers
 
   if (isFlush && (isStraight || isLowStraight)) {
-    rank = ranks[0] === 14 && isStraight ? 9 : 8
-    tiebreakers = isLowStraight ? [5, 4, 3, 2, 1] : ranks
+    rank = (ranks[0] === 14 && ranks[4] === 10) ? 9 : 8
+    tiebreakers = isLowStraight ? [5, 4, 3, 2, 14] : ranks
   } else if (groupCounts[0] === 4) {
     rank = 7
     tiebreakers = groups.flatMap(([v, c]) => Array(c).fill(Number(v)))
@@ -41,7 +41,7 @@ function evaluateFive(cards) {
     tiebreakers = ranks
   } else if (isStraight || isLowStraight) {
     rank = 4
-    tiebreakers = isLowStraight ? [5, 4, 3, 2, 1] : ranks
+    tiebreakers = isLowStraight ? [5, 4, 3, 2, 14] : ranks
   } else if (groupCounts[0] === 3) {
     rank = 3
     tiebreakers = groups.flatMap(([v, c]) => Array(c).fill(Number(v)))
