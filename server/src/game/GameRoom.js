@@ -292,7 +292,7 @@ export default class GameRoom {
     // 若无人可行动（全员 allin），自动推进到下一阶段（每张牌展示 1.5 秒）
     const canAct = this.players.filter(p => p.status === 'active')
     if (canAct.length === 0) {
-      setTimeout(() => this._nextPhase(), 500)
+      setTimeout(() => { if (this.phase !== 'WAITING') this._nextPhase() }, 500)
     }
   }
 
@@ -360,8 +360,9 @@ export default class GameRoom {
 
     // 准备下局
     setTimeout(() => {
-      // ✅ 防护：玩家可能在延迟期间离开
+      // ✅ 防护：玩家可能在延迟期间离开，或已被外部重置
       if (this.players.length === 0) return
+      if (this.phase === 'WAITING') return
       const livingPlayers = this.players.filter(p => p.status !== 'out')
       if (livingPlayers.length === 0) return
 
@@ -385,6 +386,29 @@ export default class GameRoom {
       // 通知：携带待踢出的玩家列表，由外部（index.js）负责踢出
       this._notifyChange({ kickedPlayers: toKick })
     }, 1000)
+  }
+
+  // 游戏中途人数不足时，重置为等待界面（只保留仍在线的玩家）
+  resetToWaiting(connectedIds) {
+    this.players = this.players.filter(p => connectedIds.includes(p.id))
+    this.phase = 'WAITING'
+    this.communityCards = []
+    this.pot = 0
+    this.currentBet = 0
+    this.lastAggressor = -1
+    this.deck = null
+    this.currentPlayerIndex = 0
+    this.players.forEach(p => {
+      p.bet = 0
+      p.holeCards = []
+      p.hasActed = false
+      p.isDealer = false
+      p.status = 'waiting'
+    })
+    if (this.players.length > 0) {
+      this.dealer = 0
+      this.players[0].isDealer = true
+    }
   }
 
   getPublicState(viewerId) {
