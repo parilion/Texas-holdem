@@ -43,6 +43,10 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
         winnerName: gameState.winnerName,
         winnerChips: gameState.winnerChips,
         playerResults: gameState.playerResults || [],
+        communityCards: gameState.communityCards || [],
+        showdownPlayers: (gameState.players || [])
+          .filter(p => p.holeCards && p.holeCards.length > 0 && p.status !== 'folded')
+          .map(p => ({ id: p.id, name: p.name, holeCards: p.holeCards })),
       })
     }
     prevPhaseRef.current = phase
@@ -100,9 +104,37 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
           <div className="settlement-panel">
             <div className="settlement-title">本局结算</div>
             <div className="settlement-winner">🏆 {settlement.winnerName} 获胜！</div>
+
+            {settlement.communityCards.length > 0 && (
+              <div className="settlement-community">
+                <div className="settlement-section-label">公共牌</div>
+                <div className="settlement-cards">
+                  {settlement.communityCards.map((card, i) => (
+                    <Card key={i} card={card} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {settlement.showdownPlayers.length > 0 && (
+              <div className="settlement-hands">
+                <div className="settlement-section-label">亮牌</div>
+                {settlement.showdownPlayers.map(p => (
+                  <div key={p.id} className="settlement-player-cards">
+                    <span className={`s-hand-name ${gameState.winner?.split(',').includes(p.id) ? 'winner-hand' : ''}`}>{p.name}</span>
+                    <div className="settlement-cards">
+                      {p.holeCards.map((card, i) => (
+                        <Card key={i} card={card} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="settlement-list">
               {settlement.playerResults.map(p => (
-                <div key={p.id} className={`settlement-row ${p.id === gameState.winner ? 'winner-row' : ''}`}>
+                <div key={p.id} className={`settlement-row ${gameState.winner?.split(',').includes(p.id) ? 'winner-row' : ''}`}>
                   <span className="s-name">{p.name}</span>
                   <span className={`s-change ${p.chipChange >= 0 ? 'positive' : 'negative'}`}>
                     {p.chipChange >= 0 ? '+' : ''}{p.chipChange}
