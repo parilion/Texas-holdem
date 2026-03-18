@@ -18,13 +18,16 @@ export function useSocket(handlers) {
     const s = getSocket()
     if (!s.connected) s.connect()
 
-    const entries = Object.entries(handlersRef.current)
-    entries.forEach(([event, handler]) => {
-      s.on(event, (...args) => handlersRef.current[event]?.(...args))
+    // 保存具体 listener 引用，cleanup 时精确移除
+    const listeners = []
+    Object.keys(handlersRef.current).forEach(event => {
+      const listener = (...args) => handlersRef.current[event]?.(...args)
+      s.on(event, listener)
+      listeners.push([event, listener])
     })
 
     return () => {
-      entries.forEach(([event]) => s.off(event))
+      listeners.forEach(([event, listener]) => s.off(event, listener))
     }
   }, [])
 }
