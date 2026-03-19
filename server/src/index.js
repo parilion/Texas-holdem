@@ -209,6 +209,32 @@ io.on('connection', (socket) => {
     }
   })
 
+  // ---- 聊天事件 ----
+  socket.on('chat:send', ({ roomId, content }) => {
+    try {
+      const room = manager.getRoom(roomId)
+      if (!room) return
+      const player = room.players.find(p => p.id === playerId)
+      if (!player || !content?.trim()) return
+
+      const message = {
+        id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+        playerId,
+        playerName: player.name,
+        content: content.trim(),
+        timestamp: Date.now()
+      }
+
+      // 存储到房间消息列表
+      room.addMessage(message)
+
+      // 广播给同房间所有玩家
+      io.to(roomId).emit('chat:receive', message)
+    } catch (e) {
+      console.error('chat:send error:', e)
+    }
+  })
+
   socket.on('disconnect', () => {
     console.log('客户端断开:', socket.id, 'playerId:', playerId)
     const room = manager.getRoomByPlayer(playerId)
