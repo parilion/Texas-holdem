@@ -50,25 +50,37 @@ export default class RoomManager {
     return roomId ? this.rooms.get(roomId) : null
   }
 
-  // 获取房间消息历史
+  // Get room message history
   getRoomMessages(roomId) {
     return this.chatMessages.get(roomId) || []
   }
 
-  // 添加消息到房间
+  // Add message to room
   addRoomMessage(roomId, message) {
+    // Validate room exists
+    if (!this.rooms.has(roomId)) {
+      console.warn(`Attempted to add message to non-existent room: ${roomId}`)
+      return
+    }
+
+    // Validate message structure
+    if (!message || typeof message !== 'object' || !message.content || !message.playerId) {
+      console.warn('Invalid message format')
+      return
+    }
+
     if (!this.chatMessages.has(roomId)) {
       this.chatMessages.set(roomId, [])
     }
     const messages = this.chatMessages.get(roomId)
     messages.push(message)
-    // 限制最多50条
+    // Limit to 50 messages max
     if (messages.length > 50) {
       messages.shift()
     }
   }
 
-  // 清除房间消息（房间解散时调用）
+  // Clear room messages (called when room is disbanded)
   clearRoomMessages(roomId) {
     this.chatMessages.delete(roomId)
   }
