@@ -5,6 +5,18 @@ import cors from 'cors'
 import RoomManager from './game/RoomManager.js'
 import PlayerSessionManager from './PlayerSessionManager.js'
 
+// HTML 转义函数，防止 XSS 攻击
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return text.replace(/[&<>"']/g, m => map[m])
+}
+
 const app = express()
 app.use(cors())
 
@@ -215,13 +227,20 @@ io.on('connection', (socket) => {
       const room = manager.getRoom(roomId)
       if (!room) return
       const player = room.players.find(p => p.id === playerId)
-      if (!player || !content?.trim()) return
+      if (!player) return
+
+      // 验证玩家是否在该房间中
+      if (!room.players.some(p => p.id === playerId)) return
+
+      // 消息长度限制
+      const maxLength = 500
+      if (!content?.trim() || content.trim().length > maxLength) return
 
       const message = {
         id: Date.now().toString(36) + Math.random().toString(36).substr(2),
         playerId,
         playerName: player.name,
-        content: content.trim(),
+        content: escapeHtml(content.trim()),
         timestamp: Date.now()
       }
 
