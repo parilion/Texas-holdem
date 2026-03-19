@@ -40,6 +40,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
   useEffect(() => {
     if (phase === 'SHOWDOWN' && gameState.winner && prevPhaseRef.current !== 'SHOWDOWN') {
       setSettlement({
+        winner: gameState.winner,
         winnerName: gameState.winnerName,
         winnerChips: gameState.winnerChips,
         playerResults: gameState.playerResults || [],
@@ -87,7 +88,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
         <div className="waiting-alone">等待其他玩家加入...</div>
       )}
 
-      {phase === 'WAITING' && isHost && players.length >= 2 && (
+      {phase === 'WAITING' && isHost && players.length >= 2 && !settlement && (
         <button className={`start-btn ${!allOthersReady ? 'start-btn-disabled' : ''}`} onClick={onStartGame} disabled={!allOthersReady}>开始游戏</button>
       )}
 
@@ -125,7 +126,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
                 <div className="settlement-section-label">亮牌</div>
                 {settlement.showdownPlayers.map(p => (
                   <div key={p.id} className="settlement-player-cards">
-                    <span className={`s-hand-name ${gameState.winner?.split(',').includes(p.id) ? 'winner-hand' : ''}`}>{p.name}</span>
+                    <span className={`s-hand-name ${settlement.winner?.split(',').includes(p.id) ? 'winner-hand' : ''}`}>{p.name}</span>
                     <div className="settlement-cards">
                       {p.holeCards.map((card, i) => (
                         <Card key={i} card={card} />
@@ -138,7 +139,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
 
             <div className="settlement-list">
               {settlement.playerResults.map(p => (
-                <div key={p.id} className={`settlement-row ${gameState.winner?.split(',').includes(p.id) ? 'winner-row' : ''}`}>
+                <div key={p.id} className={`settlement-row ${settlement.winner?.split(',').includes(p.id) ? 'winner-row' : ''}`}>
                   <span className="s-name">{p.name}</span>
                   <span className={`s-change ${p.chipChange >= 0 ? 'positive' : 'negative'}`}>
                     {p.chipChange >= 0 ? '+' : ''}{p.chipChange}
@@ -147,7 +148,17 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
                 </div>
               ))}
             </div>
-            <button className="settlement-continue" onClick={() => setSettlement(null)}>继续</button>
+            <button
+              className="settlement-continue"
+              onClick={() => {
+                setSettlement(null)
+                if (phase === 'WAITING' && isHost && allOthersReady) {
+                  onStartGame()
+                }
+              }}
+            >
+              {phase === 'WAITING' && isHost ? '开始下一局' : '继续'}
+            </button>
           </div>
         </div>
       )}

@@ -59,23 +59,15 @@ io.on('connection', (socket) => {
     sessionManager.register(playerId, socket.id)
     const room = manager.getRoom(existingSession.roomId)
     if (room) {
-      const otherPlayers = room.players.filter(p => p.id !== playerId)
-      if (room.phase === 'WAITING' && otherPlayers.length === 0) {
-        // 房间里只剩自己，无意义，解散房间并回大厅
-        manager.leaveRoom(playerId)
-        sessionManager.clearRoom(playerId)
-        socket.emit('session:expired', { reason: '房间内无其他玩家，已自动解散' })
-      } else {
-        const player = room.players.find(p => p.id === playerId)
-        if (player?.status === 'disconnected') {
-          player.status = player._preDisconnectStatus || 'waiting'
-          delete player._preDisconnectStatus
-        }
-        socket.join(existingSession.roomId)
-        room.onStateChange = (extra) => broadcastRoomState(room, extra)
-        socket.emit('session:restored', { roomId: existingSession.roomId, ...room.getPublicState(playerId) })
-        broadcastRoomState(room)
+      const player = room.players.find(p => p.id === playerId)
+      if (player?.status === 'disconnected') {
+        player.status = player._preDisconnectStatus || 'waiting'
+        delete player._preDisconnectStatus
       }
+      socket.join(existingSession.roomId)
+      room.onStateChange = (extra) => broadcastRoomState(room, extra)
+      socket.emit('session:restored', { roomId: existingSession.roomId, ...room.getPublicState(playerId) })
+      broadcastRoomState(room)
     } else {
       sessionManager.clearRoom(playerId)
       socket.emit('session:expired', { reason: '房间已解散' })
@@ -155,8 +147,9 @@ io.on('connection', (socket) => {
       try {
         const room = manager.getRoomByPlayer(playerId)
         if (!room) throw new Error('未在任何房间中')
+        // handleAction 内部 _advance/_endRound/_nextPhase 均会调用 _notifyChange，
+        // 已触发 broadcastRoomState，此处无需再次广播（否则 SHOWDOWN 时会丢失 winner 信息）
         room.handleAction(playerId, action, data.amount || 0)
-        broadcastRoomState(room)
       } catch (e) {
         socket.emit('error', { message: e.message })
       }
