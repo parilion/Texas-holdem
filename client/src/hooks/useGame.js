@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { getSocket, useSocket } from './useSocket'
 
 export function useGame() {
@@ -7,17 +7,43 @@ export function useGame() {
   const [myId, setMyId] = useState(null)
   const [error, setError] = useState(null)
   const [kickMessage, setKickMessage] = useState(null)
+  // 若 localStorage 有 playerId，说明可能有旧会话，先显示"恢复中"
+  const [isRestoring, setIsRestoring] = useState(() => !!localStorage.getItem('playerId'))
+  const restoreTimerRef = useRef(null)
 
   useSocket({
     'connect': () => {
-      // 断线重连后 socket.id 变化，清空旧状态让用户重新加入
       setMyId(null)
+      // 2s 超时兜底：若服务端无响应则回到大厅
+      clearTimeout(restoreTimerRef.current)
+      if (localStorage.getItem('playerId')) {
+        restoreTimerRef.current = setTimeout(() => {
+          setIsRestoring(false)
+          setRoomId(null)
+          setGameState(null)
+        }, 2000)
+      }
+    },
+    'session:restored': (data) => {
+      clearTimeout(restoreTimerRef.current)
+      setIsRestoring(false)
+      setRoomId(data.roomId)
+      setMyId(localStorage.getItem('playerId'))
+      setGameState(data)
+    },
+    'session:expired': (data) => {
+      clearTimeout(restoreTimerRef.current)
+      setIsRestoring(false)
       setRoomId(null)
       setGameState(null)
+      setMyId(null)
+      setKickMessage(data.reason || '上一局游戏已结束')
     },
     'room:joined': (data) => {
+      clearTimeout(restoreTimerRef.current)
+      setIsRestoring(false)
       setRoomId(data.roomId)
-      setMyId(getSocket().id)
+      setMyId(localStorage.getItem('playerId'))
       setGameState(data)
     },
     'game:state': (data) => {
@@ -66,5 +92,8 @@ export function useGame() {
     setMyId(null)
   }, [])
 
-  return { gameState, roomId, myId, error, kickMessage, setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom }
+  return {
+    gameState, roomId, myId, error, kickMessage, isRestoring,
+    setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom,
+  }
 }
