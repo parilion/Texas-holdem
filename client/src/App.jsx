@@ -4,7 +4,21 @@ import Table from './components/Table'
 import './index.css'
 
 export default function App() {
-  const { gameState, roomId, myId, error, kickMessage, setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom } = useGame()
+  const {
+    gameState, roomId, myId, error, kickMessage, isRestoring,
+    setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom,
+  } = useGame()
+
+  if (isRestoring) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', fontSize: '1.2rem', color: '#888',
+      }}>
+        正在恢复会话...
+      </div>
+    )
+  }
 
   if (!roomId) {
     return (
