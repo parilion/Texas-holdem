@@ -13,7 +13,7 @@ export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) 
   }[player.status] || ''
 
   return (
-    <div className={`seat seat-${position} ${isCurrentPlayer ? 'active' : ''} ${player.status}`}>
+    <div className={`seat seat-${position} ${isCurrentPlayer ? 'current-turn' : ''} ${player.status}`}>
       <div className="player-name">
         {player.isDealer && <span className="dealer-btn">D</span>}
         {player.name}
@@ -21,6 +21,11 @@ export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) 
       </div>
       <div className="player-chips">💰 {player.chips}</div>
       {player.bet > 0 && <div className="player-bet">注: {player.bet}</div>}
+      {isCurrentPlayer && (
+        <div className="thinking-indicator">
+          {isMe ? '你的回合...' : '思考中...'}
+        </div>
+      )}
       {statusLabel && !player.isDealer && <div className={`player-status ${player.status === 'ready' ? 'status-ready' : ''}`}>{statusLabel}</div>}
       <div className="player-cards">
         {player.holeCards

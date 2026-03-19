@@ -65,7 +65,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
           <PlayerSeat
             key={pos}
             player={player}
-            isCurrentPlayer={player && players[gameState.currentPlayerIndex]?.id === player.id}
+            isCurrentPlayer={player && phase !== 'WAITING' && phase !== 'SHOWDOWN' && players[gameState.currentPlayerIndex]?.id === player.id}
             isMe={player?.id === myId}
             position={POSITIONS[pos]}
           />

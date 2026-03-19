@@ -100,8 +100,14 @@
 .seat-bottom-right { bottom: -20px; right: 5%; }
 .seat-bottom2 { bottom: -80px; left: 30%; }
 
-.seat.active { outline: 3px solid #f4c430; border-radius: 8px; }
+.seat.current-turn { outline: 3px solid #f4c430; border-radius: 8px; box-shadow: 0 0 12px rgba(244, 196, 48, 0.6); }
 .seat.folded { opacity: 0.4; }
+
+.thinking-indicator {
+  font-size: 0.7rem;
+  color: #f4c430;
+  font-weight: bold;
+}
 
 .player-name { font-weight: bold; white-space: nowrap; }
 .player-chips { color: #f4c430; }
