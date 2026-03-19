@@ -176,6 +176,44 @@ test('_advance 遇到 disconnected 玩家时自动 fold 并跳过', () => {
 
   // Bob 应被自动 fold
   expect(room.players[1].status).toBe('folded')
-  // 当前操作者应跳过 Bob，不能是 Bob（index 1）
-  expect(room.currentPlayerIndex).not.toBe(1)
+  // 当前操作者应跳过 Bob，精确为 Charlie（index 2）
+  expect(room.currentPlayerIndex).toBe(2)
+})
+
+test('_advance 所有其他玩家断线时自动进入结算', () => {
+  const room = new GameRoom('R1')
+  room.addPlayer('p1', 'Alice')
+  room.addPlayer('p2', 'Bob')
+  room.addPlayer('p3', 'Charlie')
+
+  // 仅 Alice 是 active，Bob 和 Charlie 都断线
+  room.phase = 'PREFLOP'
+  room.players[0].status = 'active'
+  room.players[0].chips = 980
+  room.players[0].bet = 20
+  room.players[0].hasActed = true
+  room.players[0].holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'D', rank: 'K' }]
+  room.players[1].status = 'disconnected'
+  room.players[1].chips = 980
+  room.players[1].bet = 20
+  room.players[1].holeCards = [{ suit: 'S', rank: '2' }, { suit: 'C', rank: '3' }]
+  room.players[2].status = 'disconnected'
+  room.players[2].chips = 960
+  room.players[2].bet = 40
+  room.players[2].holeCards = [{ suit: 'H', rank: '5' }, { suit: 'D', rank: '6' }]
+  room.currentBet = 20
+  room.currentPlayerIndex = 0
+  room.pot = 80
+  let notified = false
+  room.onStateChange = () => { notified = true }
+
+  room._advance()
+
+  // Bob 和 Charlie 应被自动 fold
+  expect(room.players[1].status).toBe('folded')
+  expect(room.players[2].status).toBe('folded')
+  // 游戏应进入 SHOWDOWN 阶段（而非挂起等待）
+  expect(room.phase).toBe('SHOWDOWN')
+  // 状态变更通知应被触发
+  expect(notified).toBe(true)
 })

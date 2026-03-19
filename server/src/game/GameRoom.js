@@ -34,7 +34,7 @@ export default class GameRoom {
       chips: STARTING_CHIPS,
       bet: 0,
       holeCards: [],
-      status: 'waiting', // ready | waiting | active | folded | allin | out
+      status: 'waiting', // ready | waiting | active | folded | allin | out | disconnected
       isDealer: isFirstPlayer, // 第一个玩家为房主
     })
     if (isFirstPlayer) {
@@ -215,6 +215,11 @@ export default class GameRoom {
   }
 
   _advance() {
+    // 先将所有 disconnected 玩家自动 fold（统一处理，确保后续判断基于最新状态）
+    this.players.forEach(p => {
+      if (p.status === 'disconnected') p.status = 'folded'
+    })
+
     // 检查是否只剩一人活跃（包含 allin 状态）
     const active = this.players.filter(p => p.status === 'active' || p.status === 'allin')
     const canAct = this.players.filter(p => p.status === 'active')
@@ -234,15 +239,13 @@ export default class GameRoom {
       return this._nextPhase()
     }
 
-    // 找下一个可操作玩家（途中遇到 disconnected 玩家自动 fold）
+    // 找下一个可操作玩家
     let next = (this.currentPlayerIndex + 1) % this.players.length
     for (let i = 0; i < this.players.length; i++) {
-      if (this.players[next]?.status === 'disconnected') {
-        this.players[next].status = 'folded'
-      }
       if (this.players[next]?.status === 'active') break
       next = (next + 1) % this.players.length
     }
+
     this.currentPlayerIndex = next
     this._notifyChange()
   }
@@ -283,7 +286,8 @@ export default class GameRoom {
     while (
       (this.players[start].status === 'folded' ||
        this.players[start].status === 'out' ||
-       this.players[start].status === 'allin') &&
+       this.players[start].status === 'allin' ||
+       this.players[start].status === 'disconnected') &&
       startLoop < this.players.length
     ) {
       start = (start + 1) % this.players.length
