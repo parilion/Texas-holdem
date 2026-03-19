@@ -182,7 +182,7 @@ io.on('connection', (socket) => {
 
   socket.on('room:leave', () => {
     const room = manager.getRoomByPlayer(playerId)
-    sessionManager.clearRoom(playerId)
+    sessionManager.delete(playerId)
     if (room && room.phase !== 'WAITING') {
       handleMidGameLeave(room, playerId)
       socket.leave(room.roomId)
