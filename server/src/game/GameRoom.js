@@ -268,6 +268,9 @@ export default class GameRoom {
   }
 
   _nextPhase() {
+    // Create side pot if there are short stacks who called all-in
+    this._createSidePot()
+
     // 重置本轮 bet 和 hasActed
     this.players.forEach(p => {
       if (p.status === 'active') {
@@ -403,13 +406,12 @@ export default class GameRoom {
       if (livingPlayers.length === 0) return
 
       this.phase = 'WAITING'
-      const toKick = this.players.filter(p => p.chips <= 0).map(p => p.id)
       this.players.forEach(p => {
         p.isDealer = false
-        if (p.chips <= 0) p.status = 'out'
-        else p.status = 'waiting'
+        // 归零玩家留房间等待补筹，不踢出
+        p.status = 'waiting'
       })
-      // dealer 推进，跳过 'out' 玩家，用计数器防止无限循环
+      // dealer 推进，用计数器防止无限循环
       this.dealer = (this.dealer + 1) % this.players.length
       let loopCount = 0
       while (this.players[this.dealer]?.status === 'out' && loopCount < this.players.length) {
@@ -419,8 +421,8 @@ export default class GameRoom {
       if (this.players[this.dealer]) {
         this.players[this.dealer].isDealer = true
       }
-      // 通知：携带待踢出的玩家列表，由外部（index.js）负责踢出
-      this._notifyChange({ kickedPlayers: toKick })
+      // 归零玩家留房间等待补筹，不踢出
+      this._notifyChange()
     }, 1000)
   }
 
