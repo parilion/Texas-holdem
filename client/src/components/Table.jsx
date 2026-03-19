@@ -8,7 +8,7 @@ import './Table.css'
 // 位置索引: 0=bottom(我), 1=bottom-right, 2=right, 3=top-right, 4=top, 5=top-left, 6=left, 7=bottom-left
 const POSITIONS = ['bottom', 'bottom-right', 'right', 'top-right', 'top', 'top-left', 'left', 'bottom-left']
 
-export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, error }) {
+export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, error }) {
   const [settlement, setSettlement] = useState(null)
   const [showReplenish, setShowReplenish] = useState(false)
   const prevPhaseRef = useRef(null)
