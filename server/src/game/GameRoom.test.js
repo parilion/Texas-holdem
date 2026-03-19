@@ -22,6 +22,22 @@ test('创建房间初始状态', () => {
   expect(room.players.length).toBe(0)
 })
 
+test('pots array initialized as empty on room creation', () => {
+  const room = new GameRoom('TEST01')
+  expect(room.pots).toEqual([])
+})
+
+test('main pot is created with initial pot', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
+  room.startGame()
+  // After blinds, a main pot should exist
+  expect(room.pots.length).toBeGreaterThan(0)
+  expect(room.pots[0].amount).toBe(30) // 10 + 20 blinds
+})
+
 test('添加玩家', () => {
   const room = makeRoom(2)
   expect(room.players.length).toBe(2)

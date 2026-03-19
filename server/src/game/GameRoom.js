@@ -15,6 +15,7 @@ export default class GameRoom {
     this.players = []
     this.communityCards = []
     this.pot = 0
+    this.pots = []  // Array of { amount, eligiblePlayers: Set }
     this.currentBet = 0
     this.currentPlayerIndex = 0
     this.dealer = 0
@@ -363,7 +364,26 @@ export default class GameRoom {
       winner: winners.map(w => w.id).join(','),
       winnerName: winners.length === 1 ? winner.name : winners.map(w => w.name).join(' & '),
       winnerChips: winAmount,
-      playerResults
+      playerResults,
+      showdownPlayers: activePlayers.map(p => {
+        const evalResult = HandEvaluator.evaluate([...p.holeCards, ...this.communityCards])
+        const { winningCards, remainingCards } = HandEvaluator.getWinningCards(
+          p.holeCards,
+          this.communityCards,
+          evalResult.bestCombo
+        )
+        const isWinner = winners.some(w => w.id === p.id)
+        return {
+          id: p.id,
+          name: p.name,
+          holeCards: p.holeCards,
+          status: p.status,
+          isWinner,
+          winningCards: isWinner ? winningCards : [],
+          remainingCards: isWinner ? remainingCards : []
+        }
+      }),
+      communityCards: this.communityCards
     })
 
     // 准备下局
@@ -379,7 +399,7 @@ export default class GameRoom {
       this.players.forEach(p => {
         p.isDealer = false
         if (p.chips <= 0) p.status = 'out'
-        else p.status = 'ready'
+        else p.status = 'waiting'
       })
       // dealer 推进，跳过 'out' 玩家，用计数器防止无限循环
       this.dealer = (this.dealer + 1) % this.players.length
