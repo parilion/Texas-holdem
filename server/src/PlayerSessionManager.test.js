@@ -58,4 +58,19 @@ describe('PlayerSessionManager', () => {
     mgr.clearRoom('uuid-1')
     expect(mgr.getByPlayerId('uuid-1').roomId).toBeNull()
   })
+
+  test('delete 移除记录', () => {
+    mgr.register('uuid-1', 'socket-1')
+    mgr.delete('uuid-1')
+    expect(mgr.getByPlayerId('uuid-1')).toBeNull()
+  })
+
+  test('delete 取消进行中的断线计时', () => {
+    mgr.register('uuid-1', 'socket-1')
+    const cb = jest.fn()
+    mgr.onDisconnect('socket-1', cb)
+    mgr.delete('uuid-1')
+    jest.advanceTimersByTime(60000)
+    expect(cb).not.toHaveBeenCalled()
+  })
 })

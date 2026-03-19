@@ -23,7 +23,7 @@ export default class PlayerSessionManager {
 
   getBySocketId(socketId) {
     for (const [playerId, session] of this.sessions) {
-      if (session.socketId === socketId) return { playerId, ...session }
+      if (session.socketId === socketId) return { playerId, socketId: session.socketId, roomId: session.roomId }
     }
     return null
   }
@@ -43,6 +43,7 @@ export default class PlayerSessionManager {
     if (!entry) return
     const { playerId } = entry
     const s = this.sessions.get(playerId)
+    if (s.disconnectTimer) clearTimeout(s.disconnectTimer)
     s.disconnectTimer = setTimeout(() => {
       s.disconnectTimer = null
       onTimeout(playerId)
