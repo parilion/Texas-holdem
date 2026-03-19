@@ -4,6 +4,7 @@ export default class RoomManager {
   constructor() {
     this.rooms = new Map() // roomId -> GameRoom
     this.playerRoom = new Map() // socketId -> roomId
+    this.chatMessages = new Map() // roomId -> messages[]
   }
 
   createRoom() {
@@ -25,7 +26,8 @@ export default class RoomManager {
     if (!room) throw new Error('房间不存在')
     room.addPlayer(socketId, playerName)
     this.playerRoom.set(socketId, roomId)
-    return room
+    const messages = this.getRoomMessages(room.roomId)
+    return { ...room.getPublicState(socketId), messages }
   }
 
   leaveRoom(socketId) {
@@ -34,7 +36,10 @@ export default class RoomManager {
     const room = this.rooms.get(roomId)
     if (room) {
       room.removePlayer(socketId)
-      if (room.players.length === 0) this.rooms.delete(roomId)
+      if (room.players.length === 0) {
+        this.clearRoomMessages(roomId)
+        this.rooms.delete(roomId)
+      }
     }
     this.playerRoom.delete(socketId)
     return room
@@ -43,5 +48,28 @@ export default class RoomManager {
   getRoomByPlayer(socketId) {
     const roomId = this.playerRoom.get(socketId)
     return roomId ? this.rooms.get(roomId) : null
+  }
+
+  // 获取房间消息历史
+  getRoomMessages(roomId) {
+    return this.chatMessages.get(roomId) || []
+  }
+
+  // 添加消息到房间
+  addRoomMessage(roomId, message) {
+    if (!this.chatMessages.has(roomId)) {
+      this.chatMessages.set(roomId, [])
+    }
+    const messages = this.chatMessages.get(roomId)
+    messages.push(message)
+    // 限制最多50条
+    if (messages.length > 50) {
+      messages.shift()
+    }
+  }
+
+  // 清除房间消息（房间解散时调用）
+  clearRoomMessages(roomId) {
+    this.chatMessages.delete(roomId)
   }
 }
