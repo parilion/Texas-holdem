@@ -234,9 +234,12 @@ export default class GameRoom {
       return this._nextPhase()
     }
 
-    // 找下一个可操作玩家（用计数器防止死循环）
+    // 找下一个可操作玩家（途中遇到 disconnected 玩家自动 fold）
     let next = (this.currentPlayerIndex + 1) % this.players.length
     for (let i = 0; i < this.players.length; i++) {
+      if (this.players[next]?.status === 'disconnected') {
+        this.players[next].status = 'folded'
+      }
       if (this.players[next]?.status === 'active') break
       next = (next + 1) % this.players.length
     }

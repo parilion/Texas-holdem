@@ -151,3 +151,31 @@ test('一人弃牌 → 另一人赢得底池', () => {
   expect(room.phase).toBe('SHOWDOWN')
   expect(winner.chips).toBeGreaterThan(chipsBefore)
 })
+
+test('_advance 遇到 disconnected 玩家时自动 fold 并跳过', () => {
+  const room = new GameRoom('R1')
+  room.addPlayer('p1', 'Alice')
+  room.addPlayer('p2', 'Bob')
+  room.addPlayer('p3', 'Charlie')
+
+  // 手动模拟 PREFLOP 阶段状态
+  room.phase = 'PREFLOP'
+  room.players[0].status = 'active'
+  room.players[0].bet = 20
+  room.players[0].hasActed = true
+  room.players[1].status = 'disconnected' // Bob 断线
+  room.players[1].bet = 0
+  room.players[1].hasActed = false
+  room.players[2].status = 'active'
+  room.players[2].bet = 20
+  room.players[2].hasActed = false // Charlie 还未行动，回合未结束
+  room.currentBet = 20
+  room.currentPlayerIndex = 0 // Alice 刚行动完
+
+  room._advance()
+
+  // Bob 应被自动 fold
+  expect(room.players[1].status).toBe('folded')
+  // 当前操作者应跳过 Bob，不能是 Bob（index 1）
+  expect(room.currentPlayerIndex).not.toBe(1)
+})
