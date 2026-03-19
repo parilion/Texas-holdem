@@ -141,6 +141,22 @@ io.on('connection', (socket) => {
     }
   })
 
+  socket.on('player:replenish', ({ amount }) => {
+    try {
+      const room = manager.getRoomByPlayer(playerId)
+      if (!room) throw new Error('未在任何房间中')
+      const player = room.players.find(p => p.id === playerId)
+      if (!player) throw new Error('玩家不存在')
+      const actualAmount = Math.min(Math.max(1, amount), 1000)
+      player.chips = actualAmount
+      player.status = 'waiting'
+      io.to(playerId).emit('player:replenished', { chips: actualAmount })
+      broadcastRoomState(room)
+    } catch (e) {
+      socket.emit('error', { message: e.message })
+    }
+  })
+
   const ACTIONS = ['check', 'call', 'raise', 'fold', 'allin']
   ACTIONS.forEach(action => {
     socket.on(`action:${action}`, (data = {}) => {
