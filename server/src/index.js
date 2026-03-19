@@ -3,6 +3,7 @@ import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
 import RoomManager from './game/RoomManager.js'
+import PlayerSessionManager from './PlayerSessionManager.js'
 
 const app = express()
 app.use(cors())
@@ -13,22 +14,33 @@ const io = new Server(httpServer, {
 })
 
 const manager = new RoomManager()
+const sessionManager = new PlayerSessionManager()
 
 io.on('connection', (socket) => {
-  console.log('客户端连接:', socket.id)
+  const playerId = socket.handshake.auth?.playerId
+  if (!playerId) {
+    socket.emit('error', { message: '缺少玩家身份标识' })
+    socket.disconnect()
+    return
+  }
 
+  console.log('客户端连接:', socket.id, 'playerId:', playerId)
+
+  // Socket 加入以 playerId 命名的私有房间，用于 io.to(playerId) 定向推送
+  socket.join(playerId)
+
+  // ---- 广播辅助函数 ----
   function broadcastRoomState(room, extra = {}) {
     const { kickedPlayers = [], ...stateExtra } = extra
 
-    // 踢出筹码归零的玩家
     if (kickedPlayers.length > 0) {
-      kickedPlayers.forEach(playerId => {
-        io.to(playerId).emit('player:kicked', { message: '你的筹码为零，已被自动踢出房间' })
-        manager.leaveRoom(playerId)
+      kickedPlayers.forEach(pid => {
+        io.to(pid).emit('player:kicked', { message: '你的筹码为零，已被自动踢出房间' })
+        sessionManager.clearRoom(pid)
+        manager.leaveRoom(pid)
       })
     }
 
-    // 向剩余玩家广播状态
     room.players
       .filter(p => !kickedPlayers.includes(p.id))
       .forEach(player => {
@@ -39,13 +51,43 @@ io.on('connection', (socket) => {
       })
   }
 
+  // ---- 会话恢复逻辑 ----
+  const existingSession = sessionManager.getByPlayerId(playerId)
+
+  if (existingSession?.roomId) {
+    // 玩家仍在某个房间（断线重连）
+    sessionManager.register(playerId, socket.id)
+    const room = manager.getRoom(existingSession.roomId)
+    if (room) {
+      const player = room.players.find(p => p.id === playerId)
+      if (player?.status === 'disconnected') {
+        player.status = player._preDisconnectStatus || 'waiting'
+        delete player._preDisconnectStatus
+      }
+      socket.join(existingSession.roomId)
+      room.onStateChange = (extra) => broadcastRoomState(room, extra)
+      socket.emit('session:restored', { roomId: existingSession.roomId, ...room.getPublicState(playerId) })
+      broadcastRoomState(room)
+    } else {
+      sessionManager.clearRoom(playerId)
+      socket.emit('session:expired', { reason: '房间已解散' })
+    }
+  } else if (existingSession && !existingSession.roomId) {
+    sessionManager.register(playerId, socket.id)
+    socket.emit('session:expired', { reason: '上一局游戏已结束' })
+  } else {
+    sessionManager.register(playerId, socket.id)
+  }
+
+  // ---- 房间事件 ----
   socket.on('room:create', ({ playerName }) => {
     try {
       const room = manager.createRoom()
-      manager.joinRoom(room.roomId, socket.id, playerName)
+      manager.joinRoom(room.roomId, playerId, playerName)
+      sessionManager.setRoom(playerId, room.roomId)
       socket.join(room.roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
-      socket.emit('room:joined', { roomId: room.roomId, ...room.getPublicState(socket.id) })
+      socket.emit('room:joined', { roomId: room.roomId, ...room.getPublicState(playerId) })
     } catch (e) {
       socket.emit('error', { message: e.message })
     }
@@ -53,10 +95,11 @@ io.on('connection', (socket) => {
 
   socket.on('room:join', ({ roomId, playerName }) => {
     try {
-      const room = manager.joinRoom(roomId, socket.id, playerName)
+      const room = manager.joinRoom(roomId, playerId, playerName)
+      sessionManager.setRoom(playerId, roomId)
       socket.join(roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
-      socket.emit('room:joined', { roomId, ...room.getPublicState(socket.id) })
+      socket.emit('room:joined', { roomId, ...room.getPublicState(playerId) })
       broadcastRoomState(room)
     } catch (e) {
       socket.emit('error', { message: e.message })
@@ -65,9 +108,9 @@ io.on('connection', (socket) => {
 
   socket.on('game:start', () => {
     try {
-      const room = manager.getRoomByPlayer(socket.id)
+      const room = manager.getRoomByPlayer(playerId)
       if (!room) throw new Error('未在任何房间中')
-      const player = room.players.find(p => p.id === socket.id)
+      const player = room.players.find(p => p.id === playerId)
       if (!player?.isDealer) throw new Error('只有房主可以开始游戏')
       room.startGame()
       broadcastRoomState(room)
@@ -78,9 +121,9 @@ io.on('connection', (socket) => {
 
   socket.on('player:ready', () => {
     try {
-      const room = manager.getRoomByPlayer(socket.id)
+      const room = manager.getRoomByPlayer(playerId)
       if (!room) throw new Error('未在任何房间中')
-      room.setReady(socket.id, true)
+      room.setReady(playerId, true)
       broadcastRoomState(room)
     } catch (e) {
       socket.emit('error', { message: e.message })
@@ -89,9 +132,9 @@ io.on('connection', (socket) => {
 
   socket.on('player:unready', () => {
     try {
-      const room = manager.getRoomByPlayer(socket.id)
+      const room = manager.getRoomByPlayer(playerId)
       if (!room) throw new Error('未在任何房间中')
-      room.setReady(socket.id, false)
+      room.setReady(playerId, false)
       broadcastRoomState(room)
     } catch (e) {
       socket.emit('error', { message: e.message })
@@ -102,9 +145,9 @@ io.on('connection', (socket) => {
   ACTIONS.forEach(action => {
     socket.on(`action:${action}`, (data = {}) => {
       try {
-        const room = manager.getRoomByPlayer(socket.id)
+        const room = manager.getRoomByPlayer(playerId)
         if (!room) throw new Error('未在任何房间中')
-        room.handleAction(socket.id, action, data.amount || 0)
+        room.handleAction(playerId, action, data.amount || 0)
         broadcastRoomState(room)
       } catch (e) {
         socket.emit('error', { message: e.message })
@@ -112,19 +155,19 @@ io.on('connection', (socket) => {
     })
   })
 
-  // 游戏中途玩家离开的公共逻辑（断线/主动离开均适用）
-  function handleMidGameLeave(room, playerId) {
-    const player = room.players.find(p => p.id === playerId)
-    if (player && player.status === 'active') {
-      if (room.players[room.currentPlayerIndex]?.id === playerId) {
-        try { room.handleAction(playerId, 'fold') } catch (e) { /* 忽略 */ }
+  // 游戏中途玩家离开的公共逻辑（宽限期超时 / 主动离开均适用）
+  function handleMidGameLeave(room, pid) {
+    const player = room.players.find(p => p.id === pid)
+    if (player && (player.status === 'active' || player.status === 'disconnected')) {
+      if (room.players[room.currentPlayerIndex]?.id === pid) {
+        try { room.handleAction(pid, 'fold') } catch (e) { /* 忽略 */ }
       } else {
         player.status = 'folded'
       }
     }
-    manager.playerRoom.delete(playerId)
+    manager.playerRoom.delete(pid)
+    sessionManager.clearRoom(pid)
 
-    // 若只剩 1 名在线玩家，立即将底池给幸存者并重置回准备界面
     const connected = room.players.filter(p => manager.playerRoom.has(p.id))
     if (connected.length <= 1 && room.phase !== 'WAITING') {
       if (connected.length === 1) {
@@ -138,30 +181,40 @@ io.on('connection', (socket) => {
   }
 
   socket.on('room:leave', () => {
-    const room = manager.getRoomByPlayer(socket.id)
+    const room = manager.getRoomByPlayer(playerId)
+    sessionManager.clearRoom(playerId)
     if (room && room.phase !== 'WAITING') {
-      // 游戏进行中：折叠后检查人数，必要时重置
-      handleMidGameLeave(room, socket.id)
+      handleMidGameLeave(room, playerId)
       socket.leave(room.roomId)
     } else {
-      // 等待阶段：正常移除
-      const removedRoom = manager.leaveRoom(socket.id)
-      if (removedRoom && removedRoom.players.length > 0) broadcastRoomState(removedRoom)
+      const removedRoom = manager.leaveRoom(playerId)
+      if (removedRoom?.players.length > 0) broadcastRoomState(removedRoom)
     }
   })
 
   socket.on('disconnect', () => {
-    const room = manager.getRoomByPlayer(socket.id)
+    console.log('客户端断开:', socket.id, 'playerId:', playerId)
+    const room = manager.getRoomByPlayer(playerId)
 
-    if (room && room.phase !== 'WAITING') {
-      handleMidGameLeave(room, socket.id)
-    } else {
-      // WAITING 阶段：正常移除
-      const removedRoom = manager.leaveRoom(socket.id)
-      if (removedRoom && removedRoom.players.length > 0) broadcastRoomState(removedRoom)
+    if (room) {
+      const player = room.players.find(p => p.id === playerId)
+      if (player && ['active', 'waiting', 'ready'].includes(player.status)) {
+        player._preDisconnectStatus = player.status
+        player.status = 'disconnected'
+        broadcastRoomState(room)
+      }
     }
 
-    console.log('客户端断开:', socket.id)
+    // 启动 60s 宽限期，超时后执行真正的离开逻辑
+    sessionManager.onDisconnect(socket.id, (disconnectedPlayerId) => {
+      const currentRoom = manager.getRoomByPlayer(disconnectedPlayerId)
+      if (currentRoom && currentRoom.phase !== 'WAITING') {
+        handleMidGameLeave(currentRoom, disconnectedPlayerId)
+      } else if (currentRoom) {
+        const removedRoom = manager.leaveRoom(disconnectedPlayerId)
+        if (removedRoom?.players.length > 0) broadcastRoomState(removedRoom)
+      }
+    })
   })
 })
 
