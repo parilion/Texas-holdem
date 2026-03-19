@@ -5,8 +5,16 @@ let socket = null
 
 export function getSocket() {
   if (!socket) {
+    let playerId = localStorage.getItem('playerId')
+    if (!playerId) {
+      playerId = crypto.randomUUID()
+      localStorage.setItem('playerId', playerId)
+    }
     const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
-    socket = io(serverUrl, { autoConnect: false })
+    socket = io(serverUrl, {
+      autoConnect: false,
+      auth: { playerId },
+    })
   }
   return socket
 }
@@ -19,7 +27,6 @@ export function useSocket(handlers) {
     const s = getSocket()
     if (!s.connected) s.connect()
 
-    // 保存具体 listener 引用，cleanup 时精确移除
     const listeners = []
     Object.keys(handlersRef.current).forEach(event => {
       const listener = (...args) => handlersRef.current[event]?.(...args)
