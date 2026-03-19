@@ -94,8 +94,12 @@ export function useGame() {
     setMyId(null)
   }, [])
 
+  const doReplenish = useCallback((amount) => {
+    getSocket().emit('player:replenish', { amount })
+  }, [])
+
   return {
     gameState, roomId, myId, error, kickMessage, isRestoring,
-    setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom,
+    setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom, doReplenish,
   }
 }
