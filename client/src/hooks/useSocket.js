@@ -1,13 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // HTTP 环境降级：手动生成 UUID v4
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 let socket = null
 
 export function getSocket() {
   if (!socket) {
     let playerId = localStorage.getItem('playerId')
     if (!playerId) {
-      playerId = crypto.randomUUID()
+      playerId = generateUUID()
       localStorage.setItem('playerId', playerId)
     }
     const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin
