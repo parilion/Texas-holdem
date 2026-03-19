@@ -229,15 +229,12 @@ io.on('connection', (socket) => {
       const player = room.players.find(p => p.id === playerId)
       if (!player) return
 
-      // 验证玩家是否在该房间中
-      if (!room.players.some(p => p.id === playerId)) return
-
       // 消息长度限制
       const maxLength = 500
       if (!content?.trim() || content.trim().length > maxLength) return
 
       const message = {
-        id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+        id: Date.now().toString(36) + Math.random().toString(36).substring(2),
         playerId,
         playerName: player.name,
         content: escapeHtml(content.trim()),
@@ -250,7 +247,7 @@ io.on('connection', (socket) => {
       // 广播给同房间所有玩家
       io.to(roomId).emit('chat:receive', message)
     } catch (e) {
-      console.error('chat:send error:', e)
+      socket.emit('error', { message: e.message })
     }
   })
 
