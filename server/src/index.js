@@ -212,6 +212,7 @@ io.on('connection', (socket) => {
         handleMidGameLeave(currentRoom, disconnectedPlayerId)
       } else if (currentRoom) {
         const removedRoom = manager.leaveRoom(disconnectedPlayerId)
+        sessionManager.clearRoom(disconnectedPlayerId)
         if (removedRoom?.players.length > 0) broadcastRoomState(removedRoom)
       }
     })
