@@ -50,6 +50,7 @@ export function useGame() {
       setGameState(data)
     },
     'player:kicked': (data) => {
+      clearTimeout(restoreTimerRef.current)
       setKickMessage(data.message)
       setRoomId(null)
       setGameState(null)
@@ -86,6 +87,7 @@ export function useGame() {
   }, [])
 
   const leaveRoom = useCallback(() => {
+    clearTimeout(restoreTimerRef.current)
     getSocket().emit('room:leave')
     setRoomId(null)
     setGameState(null)
