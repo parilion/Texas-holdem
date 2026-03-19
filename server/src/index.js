@@ -59,15 +59,23 @@ io.on('connection', (socket) => {
     sessionManager.register(playerId, socket.id)
     const room = manager.getRoom(existingSession.roomId)
     if (room) {
-      const player = room.players.find(p => p.id === playerId)
-      if (player?.status === 'disconnected') {
-        player.status = player._preDisconnectStatus || 'waiting'
-        delete player._preDisconnectStatus
+      const otherPlayers = room.players.filter(p => p.id !== playerId)
+      if (room.phase === 'WAITING' && otherPlayers.length === 0) {
+        // 房间里只剩自己，无意义，解散房间并回大厅
+        manager.leaveRoom(playerId)
+        sessionManager.clearRoom(playerId)
+        socket.emit('session:expired', { reason: '房间内无其他玩家，已自动解散' })
+      } else {
+        const player = room.players.find(p => p.id === playerId)
+        if (player?.status === 'disconnected') {
+          player.status = player._preDisconnectStatus || 'waiting'
+          delete player._preDisconnectStatus
+        }
+        socket.join(existingSession.roomId)
+        room.onStateChange = (extra) => broadcastRoomState(room, extra)
+        socket.emit('session:restored', { roomId: existingSession.roomId, ...room.getPublicState(playerId) })
+        broadcastRoomState(room)
       }
-      socket.join(existingSession.roomId)
-      room.onStateChange = (extra) => broadcastRoomState(room, extra)
-      socket.emit('session:restored', { roomId: existingSession.roomId, ...room.getPublicState(playerId) })
-      broadcastRoomState(room)
     } else {
       sessionManager.clearRoom(playerId)
       socket.emit('session:expired', { reason: '房间已解散' })
