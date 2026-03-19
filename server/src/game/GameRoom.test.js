@@ -233,3 +233,39 @@ test('_advance 所有其他玩家断线时自动进入结算', () => {
   // 状态变更通知应被触发
   expect(notified).toBe(true)
 })
+
+test('allin caps at correct amount based on opponents minimum', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A') // 1000 chips
+  room.addPlayer('p1', 'B') // 1000 chips
+  room.addPlayer('p2', 'C') // 1000 chips
+
+  room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
+  room.startGame()
+
+  // Advance to flop
+  while (room.phase === 'PREFLOP') {
+    room.handleAction(room.players[room.currentPlayerIndex].id, 'call')
+  }
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+
+  // All 3 players have 980 chips left (after blinds)
+  const a = room.players[0]
+  const b = room.players[1]
+  const c = room.players[2]
+
+  // A goes all-in with 400 (not full stack)
+  room.handleAction(a.id, 'allin', 400)
+
+  // B has 980, calls 400 (not 980)
+  room.handleAction(b.id, 'call')
+  expect(b.chips).toBe(980 - 400) // 580
+
+  // C has 980, calls 400 (not 980)
+  room.handleAction(c.id, 'call')
+  expect(c.chips).toBe(980 - 400) // 580
+
+  // Each contributed 400, total 1200 in pot
+  expect(room.pot).toBe(60 + 400 * 3)
+})

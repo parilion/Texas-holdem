@@ -185,14 +185,22 @@ export default class GameRoom {
         break
       }
       case 'allin': {
-        // 有效投入上限：不超过任意对手的最大可投入总额（已投 + 剩余筹码）
+        // Calculate how much this player can contribute based on opponents' stacks
         const opponents = this.players.filter(
           p => p.id !== player.id && (p.status === 'active' || p.status === 'allin')
         )
-        const maxOpponentTotal = opponents.length > 0
-          ? Math.max(...opponents.map(p => p.bet + p.chips))
-          : player.bet + player.chips
-        const effectiveTotal = Math.min(player.bet + player.chips, maxOpponentTotal)
+
+        // Each opponent can win at most (their chips + their bet) from the all-in player
+        // So the all-in player's effective total = min of all opponents' (bet + chips)
+        // multiplied by number of opponents + 1 (for the all-in player themselves)
+        let effectiveTotal = player.bet + player.chips
+
+        if (opponents.length > 0) {
+          const minOpponentTotal = Math.min(...opponents.map(p => p.bet + p.chips))
+          const playerTotal = player.bet + player.chips
+          effectiveTotal = Math.min(playerTotal, minOpponentTotal * (opponents.length + 1))
+        }
+
         const allInAmount = Math.max(0, effectiveTotal - player.bet)
 
         this.pot += allInAmount
