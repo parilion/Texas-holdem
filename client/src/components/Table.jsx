@@ -83,6 +83,10 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
         </div>
       </div>
 
+      {phase === 'WAITING' && players.length < 2 && (
+        <div className="waiting-alone">等待其他玩家加入...</div>
+      )}
+
       {phase === 'WAITING' && isHost && players.length >= 2 && (
         <button className={`start-btn ${!allOthersReady ? 'start-btn-disabled' : ''}`} onClick={onStartGame} disabled={!allOthersReady}>开始游戏</button>
       )}

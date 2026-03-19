@@ -155,6 +155,13 @@
 .raise-group { display: flex; gap: 0.5rem; align-items: center; }
 .raise-group input { width: 100px; }
 
+.waiting-alone {
+  margin-top: 2rem;
+  color: rgba(255,255,255,0.6);
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
 .start-btn {
   padding: 1rem 3rem;
   background: #f4c430;
