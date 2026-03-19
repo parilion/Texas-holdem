@@ -215,7 +215,8 @@ export default class GameRoom {
   }
 
   _advance() {
-    // 先将所有 disconnected 玩家自动 fold（统一处理，确保后续判断基于最新状态）
+    // 先将所有 disconnected 玩家自动 fold（断线宽限期内轮到该玩家时自动 fold）
+    // 注：disconnected 状态由 index.js 的 disconnect 事件处理器负责设置
     this.players.forEach(p => {
       if (p.status === 'disconnected') p.status = 'folded'
     })
@@ -239,7 +240,7 @@ export default class GameRoom {
       return this._nextPhase()
     }
 
-    // 找下一个可操作玩家
+    // 找下一个可操作玩家（用计数器防止死循环）
     let next = (this.currentPlayerIndex + 1) % this.players.length
     for (let i = 0; i < this.players.length; i++) {
       if (this.players[next]?.status === 'active') break
