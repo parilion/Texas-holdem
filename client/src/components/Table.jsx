@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import PlayerSeat from './PlayerSeat'
 import ActionPanel from './ActionPanel'
 import Card from './Card'
+import ReplenishPanel from './ReplenishPanel'
 import './Table.css'
 
 // 位置索引: 0=bottom(我), 1=bottom-right, 2=right, 3=top-right, 4=top, 5=top-left, 6=left, 7=bottom-left
@@ -9,6 +10,7 @@ const POSITIONS = ['bottom', 'bottom-right', 'right', 'top-right', 'top', 'top-l
 
 export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, error }) {
   const [settlement, setSettlement] = useState(null)
+  const [showReplenish, setShowReplenish] = useState(false)
   const prevPhaseRef = useRef(null)
 
   if (!gameState) return <div className="table-loading">加载中...</div>
@@ -152,15 +154,21 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
               className="settlement-continue"
               onClick={() => {
                 setSettlement(null)
-                if (phase === 'WAITING' && isHost && allOthersReady) {
-                  onStartGame()
+                if (myPlayer.chips === 0) {
+                  setShowReplenish(true)
                 }
               }}
             >
-              {phase === 'WAITING' && isHost ? '开始下一局' : '继续'}
+              继续
             </button>
           </div>
         </div>
+      )}
+      {showReplenish && (
+        <ReplenishPanel onReplenish={(amount) => {
+          doReplenish(amount)
+          setShowReplenish(false)
+        }} />
       )}
     </div>
   )
