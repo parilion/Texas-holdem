@@ -208,6 +208,12 @@
   height: 48px;
 }
 
+/* 置灰的牌 */
+.poker-card.dimmed {
+  opacity: 0.4;
+  filter: grayscale(60%);
+}
+
 /* 底池和阶段 */
 .pot-info {
   text-align: center;
@@ -772,4 +778,47 @@
 
 .replenish-btn:hover {
   background: #ff6b6b;
+}
+
+/* 历史记录按钮 - 左上角 */
+.history-container {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 100;
+}
+
+.history-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s;
+}
+
+.history-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.history-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.history-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: linear-gradient(145deg, #1a2a1a, #0d1a0d);
+  border: 2px solid #8B6914;
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  min-width: 300px;
+  max-width: 360px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
 }

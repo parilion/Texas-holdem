@@ -10,6 +10,8 @@ const POSITIONS = ['bottom', 'bottom-right', 'right', 'top-right', 'top', 'top-l
 
 export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, error }) {
   const [settlement, setSettlement] = useState(null)
+  const [lastSettlement, setLastSettlement] = useState(null)
+  const [showHistory, setShowHistory] = useState(false)
   const [showReplenish, setShowReplenish] = useState(false)
   const prevPhaseRef = useRef(null)
 
@@ -41,22 +43,61 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
   // 监听结算数据
   useEffect(() => {
     if (phase === 'SHOWDOWN' && gameState.winner && prevPhaseRef.current !== 'SHOWDOWN') {
-      setSettlement({
+      // 判断是"对手弃牌获胜"还是"多人比牌获胜"
+      // showdownPlayers 来自 gameState，由后端计算好传来
+      const activePlayers = (gameState.players || []).filter(
+        p => p.holeCards && p.holeCards.length > 0 && p.status !== 'folded' && p.status !== 'out'
+      )
+      const isByFold = activePlayers.length <= 1
+
+      const settlementData = {
         winner: gameState.winner,
         winnerName: gameState.winnerName,
         winnerChips: gameState.winnerChips,
         playerResults: gameState.playerResults || [],
         communityCards: gameState.communityCards || [],
-        showdownPlayers: (gameState.players || [])
-          .filter(p => p.holeCards && p.holeCards.length > 0 && p.status !== 'folded')
-          .map(p => ({ id: p.id, name: p.name, holeCards: p.holeCards })),
-      })
+        winningCommunityCards: gameState.winningCommunityCards || [],
+        showdownPlayers: isByFold ? [] : (gameState.showdownPlayers || []),
+      }
+      setSettlement(settlementData)
+      setLastSettlement(settlementData)
     }
     prevPhaseRef.current = phase
-  }, [phase, gameState?.winner])
+  }, [phase, gameState?.winner, gameState?.showdownPlayers])
+
+  // 点击外部关闭历史下拉
+  useEffect(() => {
+    if (!showHistory) return
+    const handler = (e) => {
+      if (!e.target.closest('.history-container')) {
+        setShowHistory(false)
+      }
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [showHistory])
 
   return (
     <div className="table-wrapper">
+      <div className="history-container">
+        <button
+          className="history-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowHistory(!showHistory)
+          }}
+          disabled={!lastSettlement}
+        >
+          历史
+        </button>
+
+        {showHistory && lastSettlement && (
+          <div className="history-dropdown">
+            <SettlementContent settlement={lastSettlement} />
+          </div>
+        )}
+      </div>
+
       <div className="room-info">
         <span>房间号: <strong>{roomId}</strong></span>
         <button className="leave-btn" onClick={onLeaveRoom}>退出房间</button>
@@ -109,47 +150,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
       {settlement && (
         <div className="settlement-overlay">
           <div className="settlement-panel">
-            <div className="settlement-title">本局结算</div>
-            <div className="settlement-winner">🏆 {settlement.winnerName} 获胜！</div>
-
-            {settlement.communityCards.length > 0 && (
-              <div className="settlement-community">
-                <div className="settlement-section-label">公共牌</div>
-                <div className="settlement-cards">
-                  {settlement.communityCards.map((card, i) => (
-                    <Card key={i} card={card} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {settlement.showdownPlayers.length > 0 && (
-              <div className="settlement-hands">
-                <div className="settlement-section-label">亮牌</div>
-                {settlement.showdownPlayers.map(p => (
-                  <div key={p.id} className="settlement-player-cards">
-                    <span className={`s-hand-name ${settlement.winner?.split(',').includes(p.id) ? 'winner-hand' : ''}`}>{p.name}</span>
-                    <div className="settlement-cards">
-                      {p.holeCards.map((card, i) => (
-                        <Card key={i} card={card} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="settlement-list">
-              {settlement.playerResults.map(p => (
-                <div key={p.id} className={`settlement-row ${settlement.winner?.split(',').includes(p.id) ? 'winner-row' : ''}`}>
-                  <span className="s-name">{p.name}</span>
-                  <span className={`s-change ${p.chipChange >= 0 ? 'positive' : 'negative'}`}>
-                    {p.chipChange >= 0 ? '+' : ''}{p.chipChange}
-                  </span>
-                  <span className="s-chips">💰 {p.chips}</span>
-                </div>
-              ))}
-            </div>
+            <SettlementContent settlement={settlement} />
             <button
               className="settlement-continue"
               onClick={() => {
@@ -171,5 +172,65 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
         }} />
       )}
     </div>
+  )
+}
+
+// 结算内容组件 - 复用给 settlement 弹框和 history 下拉
+function SettlementContent({ settlement }) {
+  if (!settlement) return null
+  return (
+    <>
+      <div className="settlement-title">本局结算</div>
+      <div className="settlement-winner">🏆 {settlement.winnerName} 获胜！</div>
+
+      {settlement.communityCards.length > 0 && (
+        <div className="settlement-community">
+          <div className="settlement-section-label">公共牌</div>
+          <div className="settlement-cards">
+            {settlement.communityCards.map((card, i) => {
+              const isWinningCard = settlement.winningCommunityCards.some(
+                wc => wc.rank === card.rank && wc.suit === card.suit
+              )
+              return <Card key={i} card={card} dimmed={!isWinningCard} />
+            })}
+          </div>
+        </div>
+      )}
+
+      {settlement.showdownPlayers.length > 0 && (
+        <div className="settlement-hands">
+          <div className="settlement-section-label">亮牌</div>
+          {settlement.showdownPlayers.map(p => {
+            const isWinner = settlement.winner?.split(',').includes(p.id)
+            const isWinningCard = (card) => {
+              if (!isWinner || !p.winningCards) return false
+              return p.winningCards.some(wc => wc.rank === card.rank && wc.suit === card.suit)
+            }
+            return (
+              <div key={p.id} className="settlement-player-cards">
+                <span className={`s-hand-name ${isWinner ? 'winner-hand' : ''}`}>{p.name}</span>
+                <div className="settlement-cards">
+                  {p.holeCards.map((card, i) => (
+                    <Card key={i} card={card} dimmed={!isWinner || !isWinningCard(card)} />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="settlement-list">
+        {settlement.playerResults.map(p => (
+          <div key={p.id} className={`settlement-row ${settlement.winner?.split(',').includes(p.id) ? 'winner-row' : ''}`}>
+            <span className="s-name">{p.name}</span>
+            <span className={`s-change ${p.chipChange >= 0 ? 'positive' : 'negative'}`}>
+              {p.chipChange >= 0 ? '+' : ''}{p.chipChange}
+            </span>
+            <span className="s-chips">💰 {p.chips}</span>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
