@@ -3,17 +3,21 @@ import PlayerSeat from './PlayerSeat'
 import ActionPanel from './ActionPanel'
 import Card from './Card'
 import ReplenishPanel from './ReplenishPanel'
+import ChatBox from './ChatBox'
+import { getSocket } from '../hooks/useSocket'
 import './Table.css'
 
 // 位置索引: 0=bottom(我), 1=bottom-right, 2=right, 3=top-right, 4=top, 5=top-left, 6=left, 7=bottom-left
 const POSITIONS = ['bottom', 'bottom-right', 'right', 'top-right', 'top', 'top-left', 'left', 'bottom-left']
 
-export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, error }) {
+export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, onSendChat, error }) {
   const [settlement, setSettlement] = useState(null)
   const [lastSettlement, setLastSettlement] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [showReplenish, setShowReplenish] = useState(false)
+  const [chatMessages, setChatMessages] = useState([])
   const prevPhaseRef = useRef(null)
+  const socket = getSocket()
 
   if (!gameState) return <div className="table-loading">加载中...</div>
 
@@ -76,6 +80,15 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
     document.addEventListener('click', handler)
     return () => document.removeEventListener('click', handler)
   }, [showHistory])
+
+  // 监听聊天消息
+  useEffect(() => {
+    const handleChatReceive = (message) => {
+      setChatMessages(prev => [...prev, message])
+    }
+    socket.on('chat:receive', handleChatReceive)
+    return () => socket.off('chat:receive', handleChatReceive)
+  }, [socket])
 
   return (
     <div className="table-wrapper">
@@ -170,6 +183,14 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
           doReplenish(amount)
           setShowReplenish(false)
         }} />
+      )}
+
+      {phase === 'WAITING' && (
+        <ChatBox
+          messages={chatMessages}
+          onSendMessage={onSendChat}
+          myId={myId}
+        />
       )}
     </div>
   )
