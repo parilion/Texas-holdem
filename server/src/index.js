@@ -43,7 +43,12 @@ io.on('connection', (socket) => {
 
   // ---- 广播辅助函数 ----
   function broadcastRoomState(room, extra = {}) {
-    const { kickedPlayers = [], ...stateExtra } = extra
+    const { kickedPlayers = [], settlement, ...stateExtra } = extra
+
+    // 保存结算历史到 RoomManager
+    if (settlement) {
+      manager.setRoomSettlement(room.roomId, settlement)
+    }
 
     if (kickedPlayers.length > 0) {
       kickedPlayers.forEach(pid => {
@@ -78,7 +83,9 @@ io.on('connection', (socket) => {
       }
       socket.join(existingSession.roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
-      socket.emit('session:restored', { roomId: existingSession.roomId, ...room.getPublicState(playerId) })
+      const messages = manager.getRoomMessages(existingSession.roomId)
+      const lastSettlement = manager.getRoomSettlement(existingSession.roomId)
+      socket.emit('session:restored', { roomId: existingSession.roomId, messages, lastSettlement, ...room.getPublicState(playerId) })
       broadcastRoomState(room)
     } else {
       sessionManager.clearRoom(playerId)
@@ -99,7 +106,8 @@ io.on('connection', (socket) => {
       sessionManager.setRoom(playerId, room.roomId)
       socket.join(room.roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
-      socket.emit('room:joined', { roomId: room.roomId, ...room.getPublicState(playerId) })
+      const lastSettlement = manager.getRoomSettlement(room.roomId)
+      socket.emit('room:joined', { roomId: room.roomId, lastSettlement, ...room.getPublicState(playerId) })
     } catch (e) {
       socket.emit('error', { message: e.message })
     }
@@ -107,11 +115,13 @@ io.on('connection', (socket) => {
 
   socket.on('room:join', ({ roomId, playerName }) => {
     try {
-      const room = manager.joinRoom(roomId, playerId, playerName)
+      const roomData = manager.joinRoom(roomId, playerId, playerName)
       sessionManager.setRoom(playerId, roomId)
       socket.join(roomId)
+      const room = manager.getRoom(roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
-      socket.emit('room:joined', { roomId, ...room.getPublicState(playerId) })
+      const lastSettlement = manager.getRoomSettlement(roomId)
+      socket.emit('room:joined', { roomId, lastSettlement, ...roomData })
       broadcastRoomState(room)
     } catch (e) {
       socket.emit('error', { message: e.message })
@@ -242,7 +252,7 @@ io.on('connection', (socket) => {
       }
 
       // 存储到房间消息列表
-      room.addMessage(message)
+      manager.addRoomMessage(roomId, message)
 
       // 广播给同房间所有玩家
       io.to(roomId).emit('chat:receive', message)
