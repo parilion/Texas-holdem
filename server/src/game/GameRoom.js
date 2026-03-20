@@ -382,49 +382,65 @@ export default class GameRoom {
     this.phase = 'SHOWDOWN'
     const activePlayers = this.players.filter(p => p.status === 'active' || p.status === 'allin')
 
-    let winners = []
-    if (activePlayers.length === 1) {
-      winners = [activePlayers[0]]
-    } else {
-      const allCards = this.communityCards
-      const evaluated = activePlayers.map(p => ({
+    // 计算每个玩家的手牌强度
+    const evaluatePlayers = (players) => {
+      return players.map(p => ({
         player: p,
-        hand: HandEvaluator.evaluate([...p.holeCards, ...allCards])
+        hand: HandEvaluator.evaluate([...p.holeCards, ...this.communityCards])
       }))
+    }
+
+    // 找出给定玩家列表中的赢家
+    const findWinners = (players) => {
+      if (players.length === 1) return [players[0]]
+      const evaluated = evaluatePlayers(players)
       evaluated.sort((a, b) => HandEvaluator.compare(b.hand, a.hand))
       const topHand = evaluated[0].hand
-      // 找出所有手牌相同强度的赢家（Split Pot）
-      winners = evaluated
+      return evaluated
         .filter(e => HandEvaluator.compare(e.hand, topHand) === 0)
         .map(e => e.player)
     }
 
-    // 退还超额筹码（单赢家场景才需要）
-    if (winners.length === 1) {
-      const winner = winners[0]
-      const winnerContrib = (winner.chipsBefore ?? winner.chips) - winner.chips
-      this.players.forEach(p => {
-        if (p.id === winner.id) return
-        if (p.status === 'out') return
-        const pContrib = (p.chipsBefore ?? p.chips) - p.chips
-        const excess = Math.max(0, pContrib - winnerContrib)
-        if (excess > 0) {
-          p.chips += excess
-          this.pot -= excess
-        }
+    // 按顺序分配每个池（从主池到边池）
+    let totalWinAmount = 0
+    const allPots = [...this.pots]
+    // 如果没有边池记录，创建一个主池（兼容旧逻辑）
+    if (allPots.length === 0) {
+      allPots.push({
+        amount: this.pot,
+        eligiblePlayers: new Set(activePlayers.map(p => p.id))
       })
-      winners[0].chips += this.pot
-    } else {
-      // Split Pot：均分底池，奇数筹码给第一位赢家
-      const share = Math.floor(this.pot / winners.length)
-      winners.forEach(w => { w.chips += share })
-      const remainder = this.pot % winners.length
-      if (remainder > 0) winners[0].chips += remainder
     }
 
-    const winner = winners[0]
-    const winAmount = this.pot
+    for (const pot of allPots) {
+      // 找出有资格争夺此池的玩家
+      const eligiblePlayers = this.players.filter(p =>
+        pot.eligiblePlayers.has(p.id) && (p.status === 'active' || p.status === 'allin')
+      )
+
+      if (eligiblePlayers.length === 0) continue
+
+      // 找出此池的赢家
+      const potWinners = findWinners(eligiblePlayers)
+
+      // 分配池中的筹码
+      const share = Math.floor(pot.amount / potWinners.length)
+      potWinners.forEach(w => { w.chips += share })
+      const remainder = pot.amount % potWinners.length
+      if (remainder > 0) potWinners[0].chips += remainder
+
+      // 如果只有一个赢家，记录其赢得的金额
+      if (potWinners.length === 1) {
+        totalWinAmount += pot.amount
+      }
+    }
+
     this.pot = 0
+
+    // 找出最终赢家（用于显示）
+    const winners = findWinners(activePlayers)
+    const winner = winners[0]
+    const winAmount = totalWinAmount || this.pot
 
     const playerResults = this.players.map(p => ({
       id: p.id,
