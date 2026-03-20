@@ -59,6 +59,11 @@ io.on('connection', (socket) => {
       manager.setRoomSettlement(room.roomId, settlement)
     }
 
+    // 如果 extra 没有 winner 信息但有 lastSettlement（进入 WAITING 阶段时），
+    // 补充这些字段以保持前端 settlement 状态
+    const lastSettlement = manager.getRoomSettlement(room.roomId)
+    const shouldIncludeSettlement = lastSettlement && !winner
+
     if (kickedPlayers.length > 0) {
       kickedPlayers.forEach(pid => {
         io.to(pid).emit('player:kicked', { message: '你的筹码为零，已被自动踢出房间' })
@@ -67,12 +72,15 @@ io.on('connection', (socket) => {
       })
     }
 
+    const settlementState = shouldIncludeSettlement ? lastSettlement : {}
+
     room.players
       .filter(p => !kickedPlayers.includes(p.id))
       .forEach(player => {
         io.to(player.id).emit('game:state', {
           ...room.getPublicState(player.id),
-          ...stateExtra
+          ...stateExtra,
+          ...settlementState
         })
       })
   }

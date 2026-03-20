@@ -15,6 +15,7 @@ export default class GameRoom {
     this.players = []
     this.communityCards = []
     this.pot = 0
+    this.pots = [] // [{ amount, eligiblePlayers? }] - side pot 系统
     this.currentBet = 0
     this.currentPlayerIndex = 0
     this.dealer = 0
@@ -78,6 +79,7 @@ export default class GameRoom {
     this.deck = new Deck().shuffle()
     this.communityCards = []
     this.pot = 0
+    this.pots = [{ amount: 0 }]
     this.currentBet = BIG_BLIND
     this.lastAggressor = -1 // 重置
 
@@ -137,6 +139,7 @@ export default class GameRoom {
     player.bet = actual
     player.hasActed = true // 盲注视为已行动，无人加注时无需再次行动
     this.pot += actual
+    if (this.pots.length > 0) this.pots[0].amount += actual
     if (player.chips === 0) player.status = 'allin'
   }
 
@@ -158,6 +161,7 @@ export default class GameRoom {
         const toCall = Math.min(this.currentBet - player.bet, player.chips)
         player.chips -= toCall
         this.pot += toCall
+        if (this.pots.length > 0) this.pots[0].amount += toCall
         player.bet += toCall
         if (player.chips === 0) player.status = 'allin'
         break
@@ -172,6 +176,7 @@ export default class GameRoom {
         const toAdd = Math.min(amount - player.bet, player.chips)
         player.chips -= toAdd
         this.pot += toAdd
+        if (this.pots.length > 0) this.pots[0].amount += toAdd
         player.bet += toAdd
         // ✅ 只有 player.bet 超过 currentBet 才更新，防止降低
         if (player.bet > this.currentBet) {
@@ -184,17 +189,18 @@ export default class GameRoom {
         break
       }
       case 'allin': {
-        // 有效投入上限：不超过任意对手的最大可投入总额（已投 + 剩余筹码）
+        // 有效投入上限：不超过声明的 allin 金额，也不超过任意对手的最大可投入总额
         const opponents = this.players.filter(
           p => p.id !== player.id && (p.status === 'active' || p.status === 'allin')
         )
         const maxOpponentTotal = opponents.length > 0
           ? Math.max(...opponents.map(p => p.bet + p.chips))
           : player.bet + player.chips
-        const effectiveTotal = Math.min(player.bet + player.chips, maxOpponentTotal)
+        const effectiveTotal = Math.min(amount, maxOpponentTotal)
         const allInAmount = Math.max(0, effectiveTotal - player.bet)
 
         this.pot += allInAmount
+        if (this.pots.length > 0) this.pots[0].amount += allInAmount
         player.bet += allInAmount
         player.chips -= allInAmount
 
@@ -337,20 +343,24 @@ export default class GameRoom {
         if (excess > 0) {
           p.chips += excess
           this.pot -= excess
+          if (this.pots.length > 0) this.pots[0].amount -= excess
         }
       })
       winners[0].chips += this.pot
+      if (this.pots.length > 0) this.pots[0].amount = this.pot
     } else {
       // Split Pot：均分底池，奇数筹码给第一位赢家
       const share = Math.floor(this.pot / winners.length)
       winners.forEach(w => { w.chips += share })
       const remainder = this.pot % winners.length
       if (remainder > 0) winners[0].chips += remainder
+      if (this.pots.length > 0) this.pots[0].amount = this.pot
     }
 
     const winner = winners[0]
     const winAmount = this.pot
     this.pot = 0
+    if (this.pots.length > 0) this.pots[0].amount = 0
 
     const playerResults = this.players.map(p => ({
       id: p.id,
@@ -402,6 +412,7 @@ export default class GameRoom {
     this.phase = 'WAITING'
     this.communityCards = []
     this.pot = 0
+    this.pots = []
     this.currentBet = 0
     this.lastAggressor = -1
     this.deck = null
