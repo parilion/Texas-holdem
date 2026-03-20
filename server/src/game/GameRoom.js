@@ -15,7 +15,6 @@ export default class GameRoom {
     this.players = []
     this.communityCards = []
     this.pot = 0
-    this.pots = []  // Array of { amount, eligiblePlayers: Set }
     this.currentBet = 0
     this.currentPlayerIndex = 0
     this.dealer = 0
@@ -138,14 +137,6 @@ export default class GameRoom {
     player.bet = actual
     player.hasActed = true // 盲注视为已行动，无人加注时无需再次行动
     this.pot += actual
-    // Initialize main pot if not exists
-    if (this.pots.length === 0 || !this.pots[0].eligiblePlayers) {
-      this.pots.unshift({
-        amount: 0,
-        eligiblePlayers: new Set(this.players.filter(p => p.status !== 'out').map(p => p.id))
-      })
-    }
-    this.pots[0].amount += actual
     if (player.chips === 0) player.status = 'allin'
   }
 
@@ -193,34 +184,27 @@ export default class GameRoom {
         break
       }
       case 'allin': {
-        // 有效 allin 金额：玩家想要 allin 的金额，但不能超过持有筹码
-        const allInAmount = Math.min(amount, player.chips)
-        if (allInAmount <= 0) break
+        // 有效投入上限：不超过任意对手的最大可投入总额（已投 + 剩余筹码）
+        const opponents = this.players.filter(
+          p => p.id !== player.id && (p.status === 'active' || p.status === 'allin')
+        )
+        const maxOpponentTotal = opponents.length > 0
+          ? Math.max(...opponents.map(p => p.bet + p.chips))
+          : player.bet + player.chips
+        const effectiveTotal = Math.min(player.bet + player.chips, maxOpponentTotal)
+        const allInAmount = Math.max(0, effectiveTotal - player.bet)
 
-        const toAdd = allInAmount - player.bet // 还需要投入多少才能达到 allin
-        const actualAdd = Math.min(toAdd, player.chips) // 不能超过持有筹码
+        this.pot += allInAmount
+        player.bet += allInAmount
+        player.chips -= allInAmount
 
-        this.pot += actualAdd
-        player.bet += actualAdd
-        player.chips -= actualAdd
-
-        // 更新 currentBet 为此 allin 金额
         if (player.bet > this.currentBet) {
           this.currentBet = player.bet
           this.lastAggressor = this.currentPlayerIndex
           this.players.forEach(p => { if (p.status === 'active') p.hasActed = false })
+          player.hasActed = true
         }
-        player.hasActed = true
-        player.status = player.chips === 0 ? 'allin' : 'active'
-
-        // 记录 previous currentBet 用于边池计算
-        const previousCurrentBet = this.currentBet
-
-        // 如果有人之前已经下注到更高的金额，创建边池
-        if (previousCurrentBet > player.bet) {
-          // 短筹码玩家无法匹配最高注额，创建边池
-          this._createSidePot(this.currentBet)
-        }
+        player.status = 'allin'
         break
       }
       default:
@@ -241,13 +225,17 @@ export default class GameRoom {
     const active = this.players.filter(p => p.status === 'active' || p.status === 'allin')
     const canAct = this.players.filter(p => p.status === 'active')
 
+    // 如果没有可行动的玩家（所有人都 ALL IN 或弃牌），进入下一阶段
+    if (canAct.length === 0) {
+      return this._nextPhase()
+    }
+
     // 如果只剩一人活跃，直接结束这轮
     if (active.length <= 1) {
       return this._endRound()
     }
 
     // 判断本轮是否下注结束（所有 active 玩家 bet 相同且都行动过）
-    // 注意：allin 玩家已在 allin/handler 中标记 hasActed=true
     if (this._bettingRoundComplete()) {
       return this._nextPhase()
     }
@@ -263,71 +251,6 @@ export default class GameRoom {
     this._notifyChange()
   }
 
-  /**
-   * Create a side pot when a player goes all-in and not all opponents have called yet.
-   * Side pot = all-in player's excess over the minimum call amount.
-   * @param {number} allInPlayerId - ID of the player who went all-in
-   * @param {number} minCall - Minimum amount opponents must call to stay in
-   */
-  _createSidePotForAllIn(allInPlayerId, minCall) {
-    const allInPlayer = this.players.find(p => p.id === allInPlayerId)
-    if (!allInPlayer) return
-
-    // Calculate all-in player's excess over minCall
-    const excess = allInPlayer.bet - minCall
-    if (excess <= 0) return
-
-    // Find players who have NOT yet called (still need to act)
-    const notYetActed = this.players.filter(
-      p => p.id !== allInPlayerId &&
-           (p.status === 'active') &&
-           p.hasActed === false &&
-           p.bet < minCall
-    )
-
-    if (notYetActed.length === 0) return // All opponents already called
-
-    // Side pot eligible players = all players who can potentially win it
-    // (those who haven't folded or are out)
-    const eligiblePlayers = this.players
-      .filter(p => p.status !== 'out' && p.status !== 'folded')
-      .map(p => p.id)
-
-    this.pots.push({
-      amount: excess,
-      eligiblePlayers: new Set(eligiblePlayers)
-    })
-  }
-
-  /**
-   * Create side pots for players who called less than currentBet (short stacks).
-   * Called at the end of a betting round to sweep excess into side pots.
-   */
-  _sweepExcessToSidePots() {
-    // Find players whose bet exceeds currentBet (they overpaid relative to what others can match)
-    const excessPlayers = this.players.filter(
-      p => p.status !== 'out' && p.status !== 'folded' && p.bet > this.currentBet
-    )
-
-    excessPlayers.forEach(p => {
-      const excess = p.bet - this.currentBet
-      if (excess > 0) {
-        // Eligible: all players with bet >= currentBet (they can compete for this excess)
-        const eligible = this.players
-          .filter(op => op.status !== 'out' && op.status !== 'folded' && op.bet >= this.currentBet)
-          .map(op => op.id)
-
-        this.pots.push({
-          amount: excess,
-          eligiblePlayers: new Set(eligible)
-        })
-
-        // Adjust player's bet to currentBet for main pot calculation
-        p.bet = this.currentBet
-      }
-    })
-  }
-
   _bettingRoundComplete() {
     // 只检查仍可行动的玩家（allin 玩家已无法行动，不参与此判断）
     const activePlayers = this.players.filter(p => p.status === 'active')
@@ -336,9 +259,6 @@ export default class GameRoom {
   }
 
   _nextPhase() {
-    // Sweep any excess bets into side pots before moving to next phase
-    this._sweepExcessToSidePots()
-
     // 重置本轮 bet 和 hasActed
     this.players.forEach(p => {
       if (p.status === 'active') {
@@ -376,71 +296,61 @@ export default class GameRoom {
     }
     this.currentPlayerIndex = start
     this._notifyChange()
+
+    // 若无人可行动（全员 allin），自动推进到下一阶段（每张牌展示 1.5 秒）
+    const canAct = this.players.filter(p => p.status === 'active')
+    if (canAct.length === 0) {
+      setTimeout(() => { if (this.phase !== 'WAITING') this._nextPhase() }, 500)
+    }
   }
 
   _endRound() {
     this.phase = 'SHOWDOWN'
     const activePlayers = this.players.filter(p => p.status === 'active' || p.status === 'allin')
 
-    // 计算每个玩家的手牌强度
-    const evaluatePlayers = (players) => {
-      return players.map(p => ({
+    let winners = []
+    if (activePlayers.length === 1) {
+      winners = [activePlayers[0]]
+    } else {
+      const allCards = this.communityCards
+      const evaluated = activePlayers.map(p => ({
         player: p,
-        hand: HandEvaluator.evaluate([...p.holeCards, ...this.communityCards])
+        hand: HandEvaluator.evaluate([...p.holeCards, ...allCards])
       }))
-    }
-
-    // 找出给定玩家列表中的赢家
-    const findWinners = (players) => {
-      if (players.length === 1) return [players[0]]
-      const evaluated = evaluatePlayers(players)
       evaluated.sort((a, b) => HandEvaluator.compare(b.hand, a.hand))
       const topHand = evaluated[0].hand
-      return evaluated
+      // 找出所有手牌相同强度的赢家（Split Pot）
+      winners = evaluated
         .filter(e => HandEvaluator.compare(e.hand, topHand) === 0)
         .map(e => e.player)
     }
 
-    // 按顺序分配每个池（从主池到边池）
-    let totalWinAmount = 0
-    const allPots = [...this.pots]
-    // 如果没有边池记录，创建一个主池（兼容旧逻辑）
-    if (allPots.length === 0) {
-      allPots.push({
-        amount: this.pot,
-        eligiblePlayers: new Set(activePlayers.map(p => p.id))
+    // 退还超额筹码（单赢家场景才需要）
+    if (winners.length === 1) {
+      const winner = winners[0]
+      const winnerContrib = (winner.chipsBefore ?? winner.chips) - winner.chips
+      this.players.forEach(p => {
+        if (p.id === winner.id) return
+        if (p.status === 'out') return
+        const pContrib = (p.chipsBefore ?? p.chips) - p.chips
+        const excess = Math.max(0, pContrib - winnerContrib)
+        if (excess > 0) {
+          p.chips += excess
+          this.pot -= excess
+        }
       })
+      winners[0].chips += this.pot
+    } else {
+      // Split Pot：均分底池，奇数筹码给第一位赢家
+      const share = Math.floor(this.pot / winners.length)
+      winners.forEach(w => { w.chips += share })
+      const remainder = this.pot % winners.length
+      if (remainder > 0) winners[0].chips += remainder
     }
 
-    for (const pot of allPots) {
-      // 找出有资格争夺此池的玩家
-      const eligiblePlayers = this.players.filter(p =>
-        pot.eligiblePlayers.has(p.id) && (p.status === 'active' || p.status === 'allin')
-      )
-
-      if (eligiblePlayers.length === 0) continue
-
-      // 找出此池的赢家
-      const potWinners = findWinners(eligiblePlayers)
-
-      // 分配池中的筹码
-      const share = Math.floor(pot.amount / potWinners.length)
-      potWinners.forEach(w => { w.chips += share })
-      const remainder = pot.amount % potWinners.length
-      if (remainder > 0) potWinners[0].chips += remainder
-
-      // 如果只有一个赢家，记录其赢得的金额
-      if (potWinners.length === 1) {
-        totalWinAmount += pot.amount
-      }
-    }
-
-    this.pot = 0
-
-    // 找出最终赢家（用于显示）
-    const winners = findWinners(activePlayers)
     const winner = winners[0]
-    const winAmount = totalWinAmount || this.pot
+    const winAmount = this.pot
+    this.pot = 0
 
     const playerResults = this.players.map(p => ({
       id: p.id,
@@ -449,37 +359,11 @@ export default class GameRoom {
       chips: p.chips,
     }))
 
-    // 计算公共牌中哪些参与了获胜牌型
-    const winnerEval = HandEvaluator.evaluate([...winner.holeCards, ...this.communityCards])
-    const winnerBestCombo = winnerEval ? winnerEval.bestCombo || [] : []
-    const winningCommunityCards = this.communityCards.filter(cc =>
-      winnerBestCombo.some(bc => bc.rank === cc.rank && bc.suit === cc.suit)
-    )
-
     this._notifyChange({
       winner: winners.map(w => w.id).join(','),
       winnerName: winners.length === 1 ? winner.name : winners.map(w => w.name).join(' & '),
       winnerChips: winAmount,
-      playerResults,
-      showdownPlayers: activePlayers.map(p => {
-        const evalResult = HandEvaluator.evaluate([...p.holeCards, ...this.communityCards])
-        const bestCombo = evalResult ? evalResult.bestCombo : null
-        const { winningCards, remainingCards } = bestCombo
-          ? HandEvaluator.getWinningCards(p.holeCards, this.communityCards, bestCombo)
-          : { winningCards: [], remainingCards: p.holeCards }
-        const isWinner = winners.some(w => w.id === p.id)
-        return {
-          id: p.id,
-          name: p.name,
-          holeCards: p.holeCards,
-          status: p.status,
-          isWinner,
-          winningCards: isWinner ? winningCards : [],
-          remainingCards: isWinner ? remainingCards : []
-        }
-      }),
-      communityCards: this.communityCards,
-      winningCommunityCards
+      playerResults
     })
 
     // 准备下局
@@ -491,12 +375,13 @@ export default class GameRoom {
       if (livingPlayers.length === 0) return
 
       this.phase = 'WAITING'
+      const toKick = this.players.filter(p => p.chips <= 0).map(p => p.id)
       this.players.forEach(p => {
         p.isDealer = false
-        // 归零玩家留房间等待补筹，不踢出
-        p.status = 'waiting'
+        if (p.chips <= 0) p.status = 'out'
+        else p.status = 'ready'
       })
-      // dealer 推进，用计数器防止无限循环
+      // dealer 推进，跳过 'out' 玩家，用计数器防止无限循环
       this.dealer = (this.dealer + 1) % this.players.length
       let loopCount = 0
       while (this.players[this.dealer]?.status === 'out' && loopCount < this.players.length) {
@@ -506,8 +391,8 @@ export default class GameRoom {
       if (this.players[this.dealer]) {
         this.players[this.dealer].isDealer = true
       }
-      // 归零玩家留房间等待补筹，不踢出
-      this._notifyChange()
+      // 通知：携带待踢出的玩家列表，由外部（index.js）负责踢出
+      this._notifyChange({ kickedPlayers: toKick })
     }, 1000)
   }
 
@@ -539,10 +424,6 @@ export default class GameRoom {
       roomId: this.roomId,
       phase: this.phase,
       pot: this.pot,
-      pots: this.pots.map(p => ({
-        amount: p.amount,
-        eligiblePlayers: Array.from(p.eligiblePlayers)
-      })),
       communityCards: this.communityCards,
       currentBet: this.currentBet,
       currentPlayerIndex: this.currentPlayerIndex,
