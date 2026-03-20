@@ -59,6 +59,11 @@ function evaluateFive(cards) {
   return { rank, name: HAND_NAMES[rank], tiebreakers }
 }
 
+// 判断两张牌是否相同（用于识别手牌中的特定牌）
+function isSameCard(a, b) {
+  return a.rank === b.rank && a.suit === b.suit
+}
+
 export default class HandEvaluator {
   static evaluate(sevenCards) {
     const combos = getCombinations(sevenCards, 5)
@@ -67,9 +72,35 @@ export default class HandEvaluator {
       const result = evaluateFive(combo)
       if (!best || HandEvaluator.compare(result, best) > 0) {
         best = result
+        best.bestCombo = combo // 记录最佳组合
       }
     }
     return best
+  }
+
+  // 找出玩家的手牌中哪些参与了胜利组合
+  static getWinningCards(holeCards, communityCards, bestCombo) {
+    const allSeven = [...holeCards, ...communityCards]
+    const winningCards = []
+    const remainingCards = []
+
+    // 找出bestCombo中的牌来自手牌的部分
+    for (const holeCard of holeCards) {
+      let inCombo = false
+      for (const comboCard of bestCombo) {
+        if (isSameCard(holeCard, comboCard)) {
+          inCombo = true
+          break
+        }
+      }
+      if (inCombo) {
+        winningCards.push(holeCard)
+      } else {
+        remainingCards.push(holeCard)
+      }
+    }
+
+    return { winningCards, remainingCards }
   }
 
   static compare(a, b) {

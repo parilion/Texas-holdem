@@ -29,9 +29,17 @@ export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) 
       {statusLabel && !player.isDealer && <div className={`player-status ${player.status === 'ready' ? 'status-ready' : ''}`}>{statusLabel}</div>}
       <div className="player-cards">
         {player.holeCards
-          ? player.holeCards.map((c, i) => <Card key={i} card={c} />)
+          ? player.holeCards.map((c, i) => (
+              <div key={i} className={i === 0 ? 'card-1' : 'card-2'}>
+                <Card card={c} />
+              </div>
+            ))
           : player.cardCount > 0
-          ? Array(player.cardCount).fill(null).map((_, i) => <Card key={i} faceDown />)
+          ? Array(player.cardCount).fill(null).map((_, i) => (
+              <div key={i} className={i === 0 ? 'card-1' : 'card-2'}>
+                <Card faceDown />
+              </div>
+            ))
           : null
         }
       </div>

@@ -2,12 +2,21 @@ import { useState, useEffect } from 'react'
 
 export default function ActionPanel({ gameState, myId, onAction }) {
   const BIG_BLIND = 20
+  const me = gameState?.players?.find(p => p.id === myId)
+  const isMyTurn = gameState?.players?.[gameState.currentPlayerIndex]?.id === myId
+  const canCheck = isMyTurn && (gameState.currentBet === 0 || me?.bet === gameState.currentBet)
+  const callAmount = gameState ? Math.min(gameState.currentBet - (me?.bet || 0), me?.chips || 0) : 0
+
   const minRaiseTotal = Math.max(
     (gameState?.currentBet || 0) * 2,
     (gameState?.currentBet || 0) + BIG_BLIND,
     BIG_BLIND
   )
-  const [raiseAmount, setRaiseAmount] = useState(minRaiseTotal)
+
+  // 玩家实际总额（chips + 本轮已下注）
+  const myTotal = me ? me.bet + me.chips : 0
+  const [raiseAmount, setRaiseAmount] = useState(myTotal)
+  const [selectedPct, setSelectedPct] = useState(100)
 
   useEffect(() => {
     const newMin = Math.max(
@@ -15,48 +24,119 @@ export default function ActionPanel({ gameState, myId, onAction }) {
       (gameState?.currentBet || 0) + BIG_BLIND,
       BIG_BLIND
     )
-    setRaiseAmount(newMin)
-  }, [gameState?.currentBet])
+    setRaiseAmount(myTotal)
+    setSelectedPct(100)
+  }, [gameState?.currentBet, myTotal])
 
-  const me = gameState?.players?.find(p => p.id === myId)
-  const isMyTurn = gameState?.players?.[gameState.currentPlayerIndex]?.id === myId
-  const canCheck = isMyTurn && (gameState.currentBet === 0 || me?.bet === gameState.currentBet)
-  const callAmount = gameState ? Math.min(gameState.currentBet - (me?.bet || 0), me?.chips || 0) : 0
-
-  // 有效 all-in 额：不超过对手的最大可投入总额
+  // 有效 all-in 额
   const opponents = gameState?.players?.filter(p => p.id !== myId && (p.status === 'active' || p.status === 'allin')) || []
   const maxOpponentTotal = opponents.length > 0 ? Math.max(...opponents.map(p => p.bet + p.chips)) : 0
   const effectiveAllin = Math.min(me?.chips || 0, Math.max(0, maxOpponentTotal - (me?.bet || 0)))
 
-  // 玩家实际总额（chips + 本轮已下注）必须超过最小加注总额才能加注
-  const canRaise = me && (me.chips + (me.bet || 0)) > minRaiseTotal
+  // 能否加注
+  const canRaise = me && myTotal > minRaiseTotal
+
+  // 底池筹码
+  const pot = gameState?.pot || 0
+
+  // 百分比按钮点击（基于底池）
+  const handlePctClick = (pct) => {
+    setSelectedPct(pct)
+    const amount = Math.floor(pot * pct / 100)
+    // 确保不低于最小加注额
+    setRaiseAmount(Math.max(amount, minRaiseTotal))
+  }
+
+  // 拖动条变化
+  const handleSliderChange = (e) => {
+    setSelectedPct(null)
+    setRaiseAmount(Number(e.target.value))
+  }
 
   if (!isMyTurn || !me || me.status !== 'active') {
-    return <div className="action-panel waiting">等待其他玩家操作...</div>
+    return <div className="action-panel">等待其他玩家操作...</div>
   }
 
   return (
     <div className="action-panel">
-      <button onClick={() => onAction('fold')} className="btn-fold">弃牌</button>
-      {canCheck
-        ? <button onClick={() => onAction('check')} className="btn-check">过牌</button>
-        : <button onClick={() => onAction('call')} className="btn-call">跟注 ({callAmount})</button>
-      }
+      <div className="action-row">
+        <button onClick={() => onAction('fold')} className="btn-fold">弃牌</button>
+        {canCheck
+          ? <button onClick={() => onAction('check')} className="btn-check">过牌</button>
+          : <button onClick={() => onAction('call')} className="btn-call">跟注 {callAmount}</button>
+        }
+      </div>
+
       {canRaise && (
-        <div className="raise-group">
+        <>
+          <div className="pct-buttons">
+            <button
+              className={`pct-btn ${selectedPct === 33 ? 'active' : ''}`}
+              onClick={() => handlePctClick(33)}
+            >
+              33%
+            </button>
+            <button
+              className={`pct-btn ${selectedPct === 50 ? 'active' : ''}`}
+              onClick={() => handlePctClick(50)}
+            >
+              50%
+            </button>
+            <button
+              className={`pct-btn ${selectedPct === 66 ? 'active' : ''}`}
+              onClick={() => handlePctClick(66)}
+            >
+              66%
+            </button>
+            <button
+              className={`pct-btn ${selectedPct === 100 ? 'active' : ''}`}
+              onClick={() => handlePctClick(100)}
+            >
+              100%
+            </button>
+          </div>
+
           <input
             type="range"
+            className="raise-slider"
             min={minRaiseTotal}
-            max={me.bet + me.chips}
-            value={Math.min(raiseAmount, me.bet + me.chips)}
-            onChange={e => setRaiseAmount(Number(e.target.value))}
+            max={myTotal}
+            value={raiseAmount}
+            onChange={handleSliderChange}
           />
-          <button onClick={() => onAction('raise', raiseAmount)} className="btn-raise">
-            加注 ({raiseAmount})
+          <div className="slider-labels">
+            <span>{minRaiseTotal}</span>
+            <span>底池: {pot}</span>
+            <span>{myTotal}</span>
+          </div>
+
+          <div className="action-row">
+            <button
+              onClick={() => onAction('raise', raiseAmount)}
+              className="btn-raise"
+            >
+              加注 {raiseAmount}
+            </button>
+            <button
+              onClick={() => onAction('allin')}
+              className="btn-allin"
+            >
+              ALL IN
+            </button>
+          </div>
+        </>
+      )}
+
+      {!canRaise && (
+        <div className="action-row">
+          <button
+            onClick={() => onAction('allin')}
+            className="btn-allin"
+          >
+            ALL IN ({effectiveAllin})
           </button>
         </div>
       )}
-      <button onClick={() => onAction('allin')} className="btn-allin">ALL IN ({effectiveAllin})</button>
     </div>
   )
 }

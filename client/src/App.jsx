@@ -1,4 +1,5 @@
 import { useGame } from './hooks/useGame'
+import { getSocket } from './hooks/useSocket'
 import Lobby from './components/Lobby'
 import Table from './components/Table'
 import './index.css'
@@ -8,6 +9,11 @@ export default function App() {
     gameState, roomId, myId, error, kickMessage, isRestoring,
     setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom, doReplenish,
   } = useGame()
+
+  const handleSendChat = (content) => {
+    if (!roomId || !content.trim()) return
+    getSocket().emit('chat:send', { roomId, content })
+  }
 
   if (isRestoring) {
     return (
@@ -43,6 +49,7 @@ export default function App() {
       onUnready={doUnready}
       onLeaveRoom={leaveRoom}
       doReplenish={doReplenish}
+      onSendChat={handleSendChat}
       error={error}
     />
   )
