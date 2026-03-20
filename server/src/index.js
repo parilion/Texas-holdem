@@ -43,10 +43,19 @@ io.on('connection', (socket) => {
 
   // ---- 广播辅助函数 ----
   function broadcastRoomState(room, extra = {}) {
-    const { kickedPlayers = [], settlement, ...stateExtra } = extra
+    const { kickedPlayers = [], winner, winnerName, winnerChips, playerResults, communityCards, winningCommunityCards, showdownPlayers, ...stateExtra } = extra
 
-    // 保存结算历史到 RoomManager
-    if (settlement) {
+    // 保存结算历史到 RoomManager (只有 SHOWDOWN 结束才有 winner)
+    if (winner) {
+      const settlement = {
+        winner,
+        winnerName,
+        winnerChips,
+        playerResults: playerResults || [],
+        communityCards: communityCards || [],
+        winningCommunityCards: winningCommunityCards || [],
+        showdownPlayers: showdownPlayers || []
+      }
       manager.setRoomSettlement(room.roomId, settlement)
     }
 
