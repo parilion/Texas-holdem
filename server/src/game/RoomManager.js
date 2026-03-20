@@ -5,6 +5,7 @@ export default class RoomManager {
     this.rooms = new Map() // roomId -> GameRoom
     this.playerRoom = new Map() // socketId -> roomId
     this.chatMessages = new Map() // roomId -> messages[]
+    this.settlements = new Map() // roomId -> settlementData
   }
 
   createRoom() {
@@ -38,6 +39,7 @@ export default class RoomManager {
       room.removePlayer(socketId)
       if (room.players.length === 0) {
         this.clearRoomMessages(roomId)
+        this.clearRoomSettlement(roomId)
         this.rooms.delete(roomId)
       }
     }
@@ -83,5 +85,17 @@ export default class RoomManager {
   // Clear room messages (called when room is disbanded)
   clearRoomMessages(roomId) {
     this.chatMessages.delete(roomId)
+  }
+
+  getRoomSettlement(roomId) {
+    return this.settlements.get(roomId) || null
+  }
+
+  setRoomSettlement(roomId, settlement) {
+    this.settlements.set(roomId, settlement)
+  }
+
+  clearRoomSettlement(roomId) {
+    this.settlements.delete(roomId)
   }
 }
