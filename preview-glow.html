@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>当前操作玩家高亮预览</title>
+<style>
+  body {
+    background: #1a472a;
+    display: flex;
+    gap: 4rem;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 4rem 2rem;
+    font-family: 'Segoe UI', sans-serif;
+    color: #fff;
+    margin: 0;
+  }
+
+  .seat {
+    text-align: center;
+    font-size: 0.75rem;
+    width: 90px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 8px;
+    padding: 8px 6px;
+  }
+
+  /* 只有 current-turn 才高亮 */
+  .seat.current-turn {
+    outline: 3px solid #f4c430;
+    border-radius: 8px;
+    box-shadow: 0 0 12px rgba(244, 196, 48, 0.6);
+  }
+
+  .seat.folded { opacity: 0.4; }
+
+  .player-name { font-weight: bold; white-space: nowrap; margin-bottom: 3px; }
+  .player-chips { color: #f4c430; margin-bottom: 2px; }
+  .player-bet { color: #ff9; font-size: 0.7rem; margin-bottom: 2px; }
+  .player-status { color: #f88; font-size: 0.7rem; }
+
+  .thinking-indicator {
+    font-size: 0.7rem;
+    color: #f4c430;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+
+  .dealer-btn {
+    background: #f4c430; color: #000; border-radius: 50%;
+    width: 16px; height: 16px; display: inline-flex;
+    align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: bold; margin-right: 3px;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .col-title {
+    font-size: 0.85rem;
+    color: #aaa;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+
+  /* 操作面板 */
+  .action-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px;
+    background: rgba(20, 40, 20, 0.95);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    margin-top: 20px;
+    min-width: 280px;
+  }
+
+  .action-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .action-panel button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-fold { background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; }
+  .btn-check { background: linear-gradient(135deg, #3498db, #2980b9); color: #fff; }
+  .btn-call { background: linear-gradient(135deg, #27ae60, #1e8449); color: #fff; }
+  .btn-raise { background: linear-gradient(135deg, #f39c12, #d68910); color: #fff; }
+  .btn-allin { background: linear-gradient(135deg, #8e44ad, #7d3c98); color: #fff; }
+
+  .btn-raise:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+  /* 百分比按钮 */
+  .pct-buttons {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .pct-btn {
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .pct-btn:hover, .pct-btn.active {
+    background: rgba(244, 196, 48, 0.3);
+    border-color: #f4c430;
+  }
+
+  /* 拖动条 */
+  .raise-slider {
+    width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .raise-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #f4c430;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  .raise-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #f4c430;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    color: #aaa;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 自己的回合 -->
+<div class="col">
+  <div class="col-title">自己的回合</div>
+
+  <div class="seat current-turn active">
+    <div class="player-name">我 (我)</div>
+    <div class="player-chips">💰 850</div>
+    <div class="player-bet">注: 20</div>
+    <div class="thinking-indicator">你的回合...</div>
+  </div>
+
+  <div class="seat active">
+    <div class="player-name"><span class="dealer-btn">D</span>玩家B</div>
+    <div class="player-chips">💰 1000</div>
+  </div>
+
+  <div class="seat active">
+    <div class="player-name">玩家C</div>
+    <div class="player-chips">💰 760</div>
+  </div>
+
+  <div class="seat folded">
+    <div class="player-name">玩家D</div>
+    <div class="player-chips">💰 500</div>
+    <div class="player-status">弃牌</div>
+  </div>
+
+  <!-- 操作面板 -->
+  <div class="action-panel">
+    <div class="action-row">
+      <button class="btn-fold">弃牌</button>
+      <button class="btn-check">过牌</button>
+      <button class="btn-call">跟注 50</button>
+    </div>
+    <div class="pct-buttons">
+      <button class="pct-btn">33%</button>
+      <button class="pct-btn">50%</button>
+      <button class="pct-btn">66%</button>
+      <button class="pct-btn active">100%</button>
+    </div>
+    <input type="range" class="raise-slider" min="0" max="850" value="850">
+    <div class="slider-labels">
+      <span>0</span>
+      <span>当前筹码: 850</span>
+      <span>850</span>
+    </div>
+    <div class="action-row">
+      <button class="btn-raise">加注 500</button>
+      <button class="btn-allin">ALL IN</button>
+    </div>
+  </div>
+</div>
+
+<!-- 别人的回合 -->
+<div class="col">
+  <div class="col-title">别人的回合</div>
+
+  <div class="seat active">
+    <div class="player-name">我 (我)</div>
+    <div class="player-chips">💰 850</div>
+    <div class="player-bet">注: 20</div>
+  </div>
+
+  <div class="seat current-turn active">
+    <div class="player-name"><span class="dealer-btn">D</span>玩家B</div>
+    <div class="player-chips">💰 1000</div>
+    <div class="thinking-indicator">思考中...</div>
+  </div>
+
+  <div class="seat active">
+    <div class="player-name">玩家C</div>
+    <div class="player-chips">💰 760</div>
+  </div>
+
+  <div class="seat folded">
+    <div class="player-name">玩家D</div>
+    <div class="player-chips">💰 500</div>
+    <div class="player-status">弃牌</div>
+  </div>
+</div>
+
+</body>
+</html>

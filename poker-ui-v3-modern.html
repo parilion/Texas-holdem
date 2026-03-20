@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker UI v3 - 现代简约</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #1a2f1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', sans-serif;
+      color: #fff;
+      padding: 20px;
+    }
+
+    .version-label {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(39, 174, 96, 0.9);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: bold;
+      z-index: 1000;
+    }
+
+    /* 牌桌 */
+    .table {
+      position: relative;
+      width: 700px;
+      height: 400px;
+      background:
+        radial-gradient(ellipse at 50% 50%, #2a5a3a 0%, #1a3a25 50%, #0f2015 100%);
+      border-radius: 50%;
+      border: 16px solid #4a3728;
+      box-shadow:
+        0 0 0 3px #6b5344,
+        0 0 60px rgba(0,0,0,0.7),
+        inset 0 0 80px rgba(0,0,0,0.4);
+      margin-bottom: 80px;
+    }
+
+    .community-area {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .community-cards {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* 扑克牌 - 简洁白卡 */
+    .poker-card {
+      width: 68px;
+      height: 95px;
+      background: #fff;
+      border-radius: 6px;
+      position: relative;
+      box-shadow: 2px 3px 8px rgba(0,0,0,0.4);
+    }
+
+    .poker-card.red { color: #d63031; }
+    .poker-card.black { color: #2d3436; }
+
+    .card-corner {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+
+    .card-rank {
+      font-size: 1.5rem;
+      font-weight: 700;
+      font-family: 'Segoe UI', sans-serif;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      text-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    }
+
+    /* 数字比字母矮，需要往上移 */
+    .card-rank.num {
+      transform: translateY(-1px);
+    }
+
+    .card-suit-small {
+      font-size: 1.3rem;
+      line-height: 1;
+    }
+
+    /* 方片比较瘦，拉宽一点 */
+    .poker-card.red .card-suit-small:first-child {
+      transform: scale(1.2, 1);
+    }
+
+    .card-suit-large {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      font-size: 3.4rem;
+    }
+
+    /* 方片大图标拉宽 */
+    .card-suit-large.diamond {
+      transform: scaleX(1.3);
+      right: 4px;
+      bottom: 2px;
+    }
+
+    .poker-card.face-down {
+      background: linear-gradient(135deg, #2d3436 0%, #1a1a1a 100%);
+      border: 1px solid #444;
+    }
+
+    .card-back {
+      width: 100%;
+      height: 100%;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        repeating-linear-gradient(
+          45deg,
+          #333,
+          #333 4px,
+          #2a2a2a 4px,
+          #2a2a2a 8px
+        );
+    }
+
+    .card-back::after {
+      content: '';
+      width: 30px;
+      height: 30px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 50%;
+    }
+
+    .pot-info {
+      text-align: center;
+    }
+
+    .pot {
+      font-size: 1.25rem;
+      font-weight: bold;
+      color: #ffeaa7;
+    }
+
+    .phase {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-top: 4px;
+    }
+
+    /* 玩家座位 */
+    .seat {
+      position: absolute;
+      width: 95px;
+      padding: 10px 8px;
+      background: linear-gradient(180deg, rgba(25,35,25,0.96), rgba(15,20,15,0.96));
+      border: 2px solid #5a4a3a;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.5);
+    }
+
+    .seat-bottom {
+      bottom: -105px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .seat-left {
+      left: -115px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .seat-right {
+      right: -115px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .seat-top {
+      top: -95px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .seat.current-turn {
+      border-color: #ffeaa7;
+      box-shadow: 0 0 20px rgba(255, 234, 167, 0.5);
+    }
+
+    .player-name {
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+
+    .dealer-btn {
+      display: inline-block;
+      background: #ffeaa7;
+      color: #2d3436;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      font-size: 0.65rem;
+      font-weight: bold;
+      line-height: 18px;
+      margin-right: 3px;
+    }
+
+    .player-chips {
+      font-size: 0.75rem;
+      color: #ffeaa7;
+    }
+
+    /* 手牌 - 倾斜 */
+    .player-cards {
+      display: flex;
+      justify-content: center;
+      margin-top: 8px;
+      position: relative;
+      height: 78px;
+    }
+
+    .player-cards .poker-card {
+      width: 68px;
+      height: 95px;
+      position: absolute;
+    }
+
+    .player-cards .card-1 {
+      transform: rotate(-15deg) translateX(-16px);
+      z-index: 1;
+    }
+
+    .player-cards .card-2 {
+      transform: rotate(15deg) translateX(16px);
+      z-index: 2;
+      margin-left: -20px;
+    }
+
+    .player-cards .card-rank { font-size: 1.2rem; }
+    .player-cards .card-suit-small { font-size: 1.1rem; }
+    .player-cards .card-suit-large { font-size: 3.2rem; bottom: 4px; right: 4px; }
+
+    /* 操作面板 */
+    .action-panel {
+      display: flex;
+      gap: 8px;
+      padding: 14px 28px;
+      background: rgba(15,25,15,0.95);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 5px 25px rgba(0,0,0,0.6);
+      margin-top: 20px;
+    }
+
+    .action-panel button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-fold { background: #d63031; color: #fff; }
+    .btn-check { background: #0984e3; color: #fff; }
+    .btn-call { background: #00b894; color: #fff; }
+    .btn-raise { background: #e17055; color: #fff; }
+    .btn-allin { background: #6c5ce7; color: #fff; }
+
+    .action-panel button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="version-label">版本3: 现代简约</div>
+
+  <div class="table">
+    <div class="community-area">
+      <div class="community-cards">
+        <div class="poker-card red">
+          <div class="card-corner top-left"><span class="card-rank">K</span><span class="card-suit-small">♥</span></div>
+          <div class="card-suit-large">♥</div>
+        </div>
+        <div class="poker-card black">
+          <div class="card-corner top-left"><span class="card-rank">T</span><span class="card-suit-small">♣</span></div>
+          <div class="card-suit-large">♣</div>
+        </div>
+        <div class="poker-card red">
+          <div class="card-corner top-left"><span class="card-rank num">9</span><span class="card-suit-small">♦</span></div>
+          <div class="card-suit-large diamond">♦</div>
+        </div>
+        <div class="poker-card red">
+          <div class="card-corner top-left"><span class="card-rank num">7</span><span class="card-suit-small">♥</span></div>
+          <div class="card-suit-large">♥</div>
+        </div>
+        <div class="poker-card face-down">
+          <div class="card-back"></div>
+        </div>
+      </div>
+      <div class="pot-info">
+        <div class="pot">底池: 💰 500</div>
+        <div class="phase">河牌圈</div>
+      </div>
+    </div>
+
+    <div class="seat seat-bottom current-turn">
+      <div class="player-name"><span class="dealer-btn">D</span>Player1</div>
+      <div class="player-chips">💰 1000</div>
+      <div class="player-cards">
+        <div class="poker-card red card-1">
+          <div class="card-corner top-left"><span class="card-rank">A</span><span class="card-suit-small">♥</span></div>
+          <div class="card-suit-large">♥</div>
+        </div>
+        <div class="poker-card black card-2">
+          <div class="card-corner top-left"><span class="card-rank">K</span><span class="card-suit-small">♣</span></div>
+          <div class="card-suit-large">♣</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="seat seat-left">
+      <div class="player-name">Player2</div>
+      <div class="player-chips">💰 800</div>
+    </div>
+
+    <div class="seat seat-right">
+      <div class="player-name">Player3</div>
+      <div class="player-chips">💰 1200</div>
+    </div>
+
+    <div class="seat seat-top">
+      <div class="player-name">Player4</div>
+      <div class="player-chips">💰 600</div>
+    </div>
+  </div>
+
+  <div class="action-panel">
+    <button class="btn-fold">弃牌</button>
+    <button class="btn-check">过牌</button>
+    <button class="btn-call">跟注 50</button>
+    <button class="btn-raise">加注</button>
+    <button class="btn-allin">ALL IN</button>
+  </div>
+</body>
+</html>
