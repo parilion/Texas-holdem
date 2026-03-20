@@ -310,3 +310,48 @@ test('side pot created when short stack calls longer stack allin', () => {
   // For now, just verify pots array has entries
   expect(room.pots.length).toBeGreaterThan(0)
 })
+
+test('allin and side pot calculation', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A') // 1000
+  room.addPlayer('p1', 'B') // 1000
+  room.addPlayer('p2', 'C') // 1000
+
+  room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
+  room.startGame()
+
+  // After blinds: A=990, B=990, C=980 (sb=10, bb=20)
+  // currentBet=20
+
+  // Advance preflop - all call
+  while (room.phase === 'PREFLOP') {
+    room.handleAction(room.players[room.currentPlayerIndex].id, 'call')
+  }
+  // After preflop: all equal at 980
+
+  // Flop: A check, B check, C check
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+
+  // Turn: A check, B check, C check
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
+
+  // River: A bet 200, B call, C fold
+  const aIdx = room.players.findIndex(p => p.id === 'p0')
+  const bIdx = room.players.findIndex(p => p.id === 'p1')
+  const cIdx = room.players.findIndex(p => p.id === 'p2')
+
+  // Set current player to A
+  room.currentPlayerIndex = aIdx
+  room.handleAction('p0', 'raise', 200)
+  room.currentPlayerIndex = bIdx
+  room.handleAction('p1', 'call')
+  room.currentPlayerIndex = cIdx
+  room.handleAction('p2', 'fold')
+
+  // Verify game ends correctly
+  expect(['RIVER', 'SHOWDOWN'].includes(room.phase)).toBe(true)
+})

@@ -523,6 +523,10 @@ export default class GameRoom {
       roomId: this.roomId,
       phase: this.phase,
       pot: this.pot,
+      pots: this.pots.map(p => ({
+        amount: p.amount,
+        eligiblePlayers: Array.from(p.eligiblePlayers)
+      })),
       communityCards: this.communityCards,
       currentBet: this.currentBet,
       currentPlayerIndex: this.currentPlayerIndex,
