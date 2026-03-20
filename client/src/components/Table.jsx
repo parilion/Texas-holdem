@@ -12,7 +12,7 @@ const POSITIONS = ['bottom', 'bottom-right', 'right', 'top-right', 'top', 'top-l
 
 export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, onSendChat, error }) {
   const [settlement, setSettlement] = useState(null)
-  const [lastSettlement, setLastSettlement] = useState(null)
+  const [lastSettlement, setLastSettlement] = useState(gameState?.lastSettlement || null)
   const [showHistory, setShowHistory] = useState(false)
   const [showReplenish, setShowReplenish] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
@@ -67,7 +67,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
       setLastSettlement(settlementData)
     }
     prevPhaseRef.current = phase
-  }, [phase, gameState?.winner, gameState?.showdownPlayers])
+  }, [phase, gameState])
 
   // 点击外部关闭历史下拉
   useEffect(() => {
@@ -84,11 +84,21 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
   // 监听聊天消息
   useEffect(() => {
     const handleChatReceive = (message) => {
-      setChatMessages(prev => [...prev, message])
+      setChatMessages(prev => {
+        if (prev.some(m => m.id === message.id)) return prev
+        return [...prev, message]
+      })
     }
     socket.on('chat:receive', handleChatReceive)
     return () => socket.off('chat:receive', handleChatReceive)
   }, [socket])
+
+  // 用 gameState.messages 初始化聊天消息
+  useEffect(() => {
+    if (gameState?.messages && gameState.messages.length > 0) {
+      setChatMessages(gameState.messages)
+    }
+  }, [gameState])
 
   return (
     <div className="table-wrapper">
@@ -168,7 +178,7 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
               className="settlement-continue"
               onClick={() => {
                 setSettlement(null)
-                if (myPlayer.chips === 0) {
+                if (myPlayer?.chips === 0) {
                   setShowReplenish(true)
                 }
               }}
@@ -185,13 +195,11 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
         }} />
       )}
 
-      {phase === 'WAITING' && (
-        <ChatBox
-          messages={chatMessages}
-          onSendMessage={onSendChat}
-          myId={myId}
-        />
-      )}
+      <ChatBox
+        messages={chatMessages}
+        onSendMessage={onSendChat}
+        myId={myId}
+      />
     </div>
   )
 }
