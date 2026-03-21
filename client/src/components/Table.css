@@ -743,26 +743,38 @@
 
 .replenish-title {
   font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.replenish-desc {
+  font-size: 0.9rem;
+  color: #aaa;
   margin-bottom: 20px;
 }
 
-.replenish-form label {
-  display: block;
-  margin-bottom: 16px;
-  font-size: 1rem;
-}
-
-.replenish-form input {
+.replenish-input {
   display: block;
   width: 100%;
-  margin-top: 8px;
-  padding: 8px;
+  padding: 10px;
   font-size: 1.2rem;
   text-align: center;
   background: #16213e;
   border: 1px solid #e94560;
   color: #fff;
   border-radius: 6px;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.replenish-input::placeholder {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.replenish-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .replenish-btn {
@@ -776,8 +788,30 @@
   cursor: pointer;
 }
 
-.replenish-btn:hover {
+.replenish-btn:hover:not(:disabled) {
   background: #ff6b6b;
+}
+
+.replenish-btn:disabled {
+  background: #555;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.replenish-leave-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1.1rem;
+  background: transparent;
+  border: 1px solid #666;
+  border-radius: 6px;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.replenish-leave-btn:hover {
+  border-color: #aaa;
+  color: #fff;
 }
 
 /* 历史记录按钮 - 左上角 */

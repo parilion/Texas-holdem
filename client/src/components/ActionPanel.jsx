@@ -28,11 +28,6 @@ export default function ActionPanel({ gameState, myId, onAction }) {
     setSelectedPct(100)
   }, [gameState?.currentBet, myTotal])
 
-  // 有效 all-in 额
-  const opponents = gameState?.players?.filter(p => p.id !== myId && (p.status === 'active' || p.status === 'allin')) || []
-  const maxOpponentTotal = opponents.length > 0 ? Math.max(...opponents.map(p => p.bet + p.chips)) : 0
-  const effectiveAllin = Math.min(me?.chips || 0, Math.max(0, maxOpponentTotal - (me?.bet || 0)))
-
   // 能否加注
   const canRaise = me && myTotal > minRaiseTotal
 
@@ -117,25 +112,8 @@ export default function ActionPanel({ gameState, myId, onAction }) {
             >
               加注 {raiseAmount}
             </button>
-            <button
-              onClick={() => onAction('allin')}
-              className="btn-allin"
-            >
-              ALL IN
-            </button>
           </div>
         </>
-      )}
-
-      {!canRaise && (
-        <div className="action-row">
-          <button
-            onClick={() => onAction('allin')}
-            className="btn-allin"
-          >
-            ALL IN ({effectiveAllin})
-          </button>
-        </div>
       )}
     </div>
   )

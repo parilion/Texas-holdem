@@ -42,7 +42,8 @@ io.on('connection', (socket) => {
   socket.join(playerId)
 
   // ---- 广播辅助函数 ----
-  function broadcastRoomState(room, extra = {}) {
+  // skipId: 跳过该玩家的 game:state 推送（适用于已收到 session:restored / room:joined 的玩家）
+  function broadcastRoomState(room, extra = {}, skipId = null) {
     const { kickedPlayers = [], winner, winnerName, winnerChips, playerResults, communityCards, winningCommunityCards, showdownPlayers, ...stateExtra } = extra
 
     // 保存结算历史到 RoomManager (只有 SHOWDOWN 结束才有 winner)
@@ -52,7 +53,7 @@ io.on('connection', (socket) => {
         winnerName,
         winnerChips,
         playerResults: playerResults || [],
-        communityCards: communityCards || [],
+        communityCards: room.communityCards || [],  // 用房间实际公共牌，extra 里不含此字段
         winningCommunityCards: winningCommunityCards || [],
         showdownPlayers: showdownPlayers || []
       }
@@ -60,7 +61,7 @@ io.on('connection', (socket) => {
     }
 
     // 如果 extra 没有 winner 信息但有 lastSettlement（进入 WAITING 阶段时），
-    // 补充这些字段以保持前端 settlement 状态
+    // 补充结算字段以保持前端 settlement 状态
     const lastSettlement = manager.getRoomSettlement(room.roomId)
     const shouldIncludeSettlement = lastSettlement && !winner
 
@@ -72,15 +73,20 @@ io.on('connection', (socket) => {
       })
     }
 
-    const settlementState = shouldIncludeSettlement ? lastSettlement : {}
+    // 只取结算的非牌面字段，避免覆盖 publicState 中的实际 communityCards
+    const { communityCards: _sc, winningCommunityCards: _swc, showdownPlayers: _ssp, ...settlementRest } =
+      shouldIncludeSettlement ? lastSettlement : {}
+    // SHOWDOWN 阶段将 winner 数据直接放入广播，供前端触发结算弹窗
+    const winnerData = winner ? { winner, winnerName, winnerChips, playerResults, showdownPlayers, winningCommunityCards } : {}
 
     room.players
-      .filter(p => !kickedPlayers.includes(p.id))
+      .filter(p => !kickedPlayers.includes(p.id) && p.id !== skipId)
       .forEach(player => {
         io.to(player.id).emit('game:state', {
           ...room.getPublicState(player.id),
           ...stateExtra,
-          ...settlementState
+          ...settlementRest,
+          ...winnerData
         })
       })
   }
@@ -103,7 +109,7 @@ io.on('connection', (socket) => {
       const messages = manager.getRoomMessages(existingSession.roomId)
       const lastSettlement = manager.getRoomSettlement(existingSession.roomId)
       socket.emit('session:restored', { roomId: existingSession.roomId, messages, lastSettlement, ...room.getPublicState(playerId) })
-      broadcastRoomState(room)
+      broadcastRoomState(room, {}, playerId) // 通知其他玩家该玩家重连，自身已由 session:restored 收到完整状态
     } else {
       sessionManager.clearRoom(playerId)
       socket.emit('session:expired', { reason: '房间已解散' })
@@ -139,7 +145,7 @@ io.on('connection', (socket) => {
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
       const lastSettlement = manager.getRoomSettlement(roomId)
       socket.emit('room:joined', { roomId, lastSettlement, ...roomData })
-      broadcastRoomState(room)
+      broadcastRoomState(room, {}, playerId) // 通知其他玩家有新玩家加入，自身已由 room:joined 收到完整状态
     } catch (e) {
       socket.emit('error', { message: e.message })
     }

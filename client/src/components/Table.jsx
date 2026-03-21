@@ -12,9 +12,8 @@ const POSITIONS = ['bottom', 'bottom-right', 'right', 'top-right', 'top', 'top-l
 
 export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, onSendChat, error }) {
   const [settlement, setSettlement] = useState(null)
-  const [lastSettlement, setLastSettlement] = useState(gameState?.lastSettlement || null)
+  const [lastSettlement, setLastSettlement] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
-  const [showReplenish, setShowReplenish] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
   const prevPhaseRef = useRef(null)
   const socket = getSocket()
@@ -92,6 +91,13 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
     socket.on('chat:receive', handleChatReceive)
     return () => socket.off('chat:receive', handleChatReceive)
   }, [socket])
+
+  // 从 session:restored / room:joined 的初始 gameState 恢复上局结算记录
+  useEffect(() => {
+    if (gameState?.lastSettlement && !lastSettlement) {
+      setLastSettlement(gameState.lastSettlement)
+    }
+  }, [gameState, lastSettlement])
 
   // 用 gameState.messages 初始化聊天消息
   useEffect(() => {
@@ -176,23 +182,19 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
             <SettlementContent settlement={settlement} />
             <button
               className="settlement-continue"
-              onClick={() => {
-                setSettlement(null)
-                if (myPlayer?.chips === 0) {
-                  setShowReplenish(true)
-                }
-              }}
+              onClick={() => setSettlement(null)}
             >
               继续
             </button>
           </div>
         </div>
       )}
-      {showReplenish && (
-        <ReplenishPanel onReplenish={(amount) => {
-          doReplenish(amount)
-          setShowReplenish(false)
-        }} />
+      {/* 筹码归零时显示补筹界面：结算弹窗关闭后自动出现，刷新后也能恢复 */}
+      {!settlement && phase === 'WAITING' && myPlayer?.chips === 0 && (
+        <ReplenishPanel
+          onReplenish={doReplenish}
+          onLeaveRoom={onLeaveRoom}
+        />
       )}
 
       <ChatBox

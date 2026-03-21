@@ -1,44 +1,47 @@
 import { useState } from 'react'
 
-export default function ReplenishPanel({ onReplenish }) {
-  const [amount, setAmount] = useState(1000)
+export default function ReplenishPanel({ onReplenish, onLeaveRoom }) {
+  const [amount, setAmount] = useState('')
 
   const handleChange = (e) => {
-    const val = parseInt(e.target.value, 10)
-    if (val > 1000) {
-      setAmount(1000)
-    } else if (val < 1) {
-      setAmount(1)
-    } else {
-      setAmount(val)
-    }
+    const raw = e.target.value
+    if (raw === '') { setAmount(''); return }
+    const num = parseInt(raw, 10)
+    if (isNaN(num) || num < 1) { setAmount(1); return }
+    setAmount(Math.min(1000, num))
   }
 
-  const handleSubmit = () => {
-    if (amount >= 1 && amount <= 1000) {
-      onReplenish(amount)
-    }
-  }
+  const parsed = parseInt(amount, 10)
+  const isValid = !isNaN(parsed) && parsed >= 1 && parsed <= 1000
 
   return (
     <div className="replenish-overlay">
       <div className="replenish-panel">
-        <div className="replenish-title">💰 补筹</div>
+        <div className="replenish-title">💰 筹码不足</div>
+        <div className="replenish-desc">请选择补充筹码或退出房间</div>
         <div className="replenish-form">
-          <label>
-            补筹金额:
-            <input
-              type="number"
-              min={1}
-              max={1000}
-              value={amount}
-              onChange={handleChange}
-            />
-          </label>
+          <input
+            type="number"
+            min={1}
+            max={1000}
+            value={amount}
+            onChange={handleChange}
+            placeholder="输入金额（1 - 1000）"
+            className="replenish-input"
+          />
         </div>
-        <button className="replenish-btn" onClick={handleSubmit}>
-          补筹
-        </button>
+        <div className="replenish-actions">
+          <button
+            className="replenish-btn"
+            onClick={() => onReplenish(parsed)}
+            disabled={!isValid}
+          >
+            补充筹码
+          </button>
+          <button className="replenish-leave-btn" onClick={onLeaveRoom}>
+            退出房间
+          </button>
+        </div>
       </div>
     </div>
   )

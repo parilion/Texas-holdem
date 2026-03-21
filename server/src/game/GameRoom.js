@@ -315,8 +315,13 @@ export default class GameRoom {
     const activePlayers = this.players.filter(p => p.status === 'active' || p.status === 'allin')
 
     let winners = []
+    let showdownPlayers = []
+    let winningCommunityCards = []
+
     if (activePlayers.length === 1) {
+      // 弃牌获胜：不展示手牌对比，公共牌全部正常显示（不置灰）
       winners = [activePlayers[0]]
+      winningCommunityCards = [...this.communityCards]
     } else {
       const allCards = this.communityCards
       const evaluated = activePlayers.map(p => ({
@@ -329,6 +334,29 @@ export default class GameRoom {
       winners = evaluated
         .filter(e => HandEvaluator.compare(e.hand, topHand) === 0)
         .map(e => e.player)
+
+      const winnerIds = new Set(winners.map(w => w.id))
+
+      // 计算每位摊牌玩家的手牌及胜利牌
+      showdownPlayers = evaluated.map(e => {
+        const isWinner = winnerIds.has(e.player.id)
+        const winningCards = isWinner
+          ? HandEvaluator.getWinningCards(e.player.holeCards, allCards, e.hand.bestCombo).winningCards
+          : []
+        return {
+          id: e.player.id,
+          name: e.player.name,
+          holeCards: e.player.holeCards,
+          handName: e.hand.name,
+          winningCards,
+        }
+      })
+
+      // 胜者最佳牌型中属于公共牌的部分
+      const winnerEval = evaluated.find(e => winnerIds.has(e.player.id))
+      winningCommunityCards = winnerEval.hand.bestCombo.filter(card =>
+        allCards.some(cc => cc.rank === card.rank && cc.suit === card.suit)
+      )
     }
 
     // 退还超额筹码（单赢家场景才需要）
@@ -373,7 +401,9 @@ export default class GameRoom {
       winner: winners.map(w => w.id).join(','),
       winnerName: winners.length === 1 ? winner.name : winners.map(w => w.name).join(' & '),
       winnerChips: winAmount,
-      playerResults
+      playerResults,
+      showdownPlayers,
+      winningCommunityCards,
     })
 
     // 准备下局
@@ -385,10 +415,9 @@ export default class GameRoom {
       if (livingPlayers.length === 0) return
 
       this.phase = 'WAITING'
-      const toKick = this.players.filter(p => p.chips <= 0).map(p => p.id)
       this.players.forEach(p => {
         p.isDealer = false
-        if (p.chips <= 0) p.status = 'out'
+        if (p.chips <= 0) p.status = 'out'  // 标记无筹码玩家，不再自动踢出，由玩家自行选择补筹或离开
         else p.status = 'ready'
       })
       // dealer 推进，跳过 'out' 玩家，用计数器防止无限循环
@@ -401,8 +430,7 @@ export default class GameRoom {
       if (this.players[this.dealer]) {
         this.players[this.dealer].isDealer = true
       }
-      // 通知：携带待踢出的玩家列表，由外部（index.js）负责踢出
-      this._notifyChange({ kickedPlayers: toKick })
+      this._notifyChange({})
     }, 1000)
   }
 
