@@ -10,6 +10,8 @@ export function useGame() {
   // 若 localStorage 有 playerId，说明可能有旧会话，先显示"恢复中"
   const [isRestoring, setIsRestoring] = useState(() => !!localStorage.getItem('playerId'))
   const restoreTimerRef = useRef(null)
+  // 用 ref 同步追踪当前 roomId，避免 game:state 闭包读到旧值
+  const currentRoomIdRef = useRef(null)
 
   useSocket({
     'connect': () => {
@@ -19,6 +21,7 @@ export function useGame() {
       if (localStorage.getItem('playerId')) {
         restoreTimerRef.current = setTimeout(() => {
           setIsRestoring(false)
+          currentRoomIdRef.current = null
           setRoomId(null)
           setGameState(null)
         }, 2000)
@@ -27,6 +30,7 @@ export function useGame() {
     'session:restored': (data) => {
       clearTimeout(restoreTimerRef.current)
       setIsRestoring(false)
+      currentRoomIdRef.current = data.roomId
       setRoomId(data.roomId)
       setMyId(localStorage.getItem('playerId'))
       setGameState(data)
@@ -34,6 +38,7 @@ export function useGame() {
     'session:expired': (data) => {
       clearTimeout(restoreTimerRef.current)
       setIsRestoring(false)
+      currentRoomIdRef.current = null
       setRoomId(null)
       setGameState(null)
       setMyId(null)
@@ -42,16 +47,20 @@ export function useGame() {
     'room:joined': (data) => {
       clearTimeout(restoreTimerRef.current)
       setIsRestoring(false)
+      currentRoomIdRef.current = data.roomId
       setRoomId(data.roomId)
       setMyId(localStorage.getItem('playerId'))
       setGameState(data)
     },
     'game:state': (data) => {
+      // 过滤来自旧房间的延迟推送，防止闪回
+      if (currentRoomIdRef.current !== null && data.roomId !== currentRoomIdRef.current) return
       setGameState(data)
     },
     'player:kicked': (data) => {
       clearTimeout(restoreTimerRef.current)
       setKickMessage(data.message)
+      currentRoomIdRef.current = null
       setRoomId(null)
       setGameState(null)
       setMyId(null)
@@ -89,6 +98,7 @@ export function useGame() {
   const leaveRoom = useCallback(() => {
     clearTimeout(restoreTimerRef.current)
     getSocket().emit('room:leave')
+    currentRoomIdRef.current = null
     setRoomId(null)
     setGameState(null)
     setMyId(null)
