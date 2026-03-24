@@ -581,9 +581,33 @@
   border-radius: 16px;
   padding: 2rem 2.5rem;
   min-width: 340px;
+  max-width: 92vw;
+  max-height: 88vh;
   text-align: center;
   box-shadow: 0 0 60px rgba(0,0,0,0.8);
   animation: winnerPop 0.4s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.settlement-body {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
+}
+
+.settlement-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.settlement-body::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+}
+
+.settlement-body::-webkit-scrollbar-thumb {
+  background: rgba(244,196,48,0.4);
+  border-radius: 2px;
 }
 
 .settlement-title {

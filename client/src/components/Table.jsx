@@ -178,7 +178,9 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
       {settlement && (
         <div className="settlement-overlay">
           <div className="settlement-panel">
-            <SettlementContent settlement={settlement} />
+            <div className="settlement-body">
+              <SettlementContent settlement={settlement} />
+            </div>
             <button
               className="settlement-continue"
               onClick={() => setSettlement(null)}
