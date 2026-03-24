@@ -1,6 +1,22 @@
+import { useState, useEffect } from 'react'
 import Card from './Card'
 
+const TURN_SECONDS = 30
+
 export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) {
+  const [timeLeft, setTimeLeft] = useState(TURN_SECONDS)
+
+  useEffect(() => {
+    if (!isCurrentPlayer) {
+      setTimeLeft(TURN_SECONDS)
+      return
+    }
+    setTimeLeft(TURN_SECONDS)
+    const interval = setInterval(() => {
+      setTimeLeft(prev => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [isCurrentPlayer])
   if (!player) return <div className={`seat empty seat-${position}`} />
 
   const statusLabel = {
@@ -23,7 +39,16 @@ export default function PlayerSeat({ player, isCurrentPlayer, isMe, position }) 
       {player.bet > 0 && <div className="player-bet">注: {player.bet}</div>}
       {isCurrentPlayer && (
         <div className="thinking-indicator">
-          {isMe ? '你的回合...' : '思考中...'}
+          <span>{isMe ? '你的回合' : '思考中'} {timeLeft}s</span>
+          <div className="turn-timer-bar">
+            <div
+              className="turn-timer-fill"
+              style={{
+                width: `${(timeLeft / TURN_SECONDS) * 100}%`,
+                backgroundColor: timeLeft > 10 ? '#4caf50' : timeLeft > 5 ? '#f4c430' : '#e53935',
+              }}
+            />
+          </div>
         </div>
       )}
       {statusLabel && !player.isDealer && <div className={`player-status ${player.status === 'ready' ? 'status-ready' : ''}`}>{statusLabel}</div>}
