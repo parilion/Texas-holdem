@@ -28,8 +28,10 @@ export default function ActionPanel({ gameState, myId, onAction }) {
     setSelectedPct(100)
   }, [gameState?.currentBet, myTotal])
 
-  // 能否加注
-  const canRaise = me && myTotal > minRaiseTotal
+  // 能否加注：只要玩家总筹码超过当前注即可（允许 all-in 式再加注）
+  const canRaise = me && myTotal > (gameState?.currentBet || 0)
+  // 实际最小值：若总筹码不足最小加注额，则 all-in 为唯一选项
+  const effectiveMin = Math.min(minRaiseTotal, myTotal)
 
   // 底池筹码
   const pot = gameState?.pot || 0
@@ -38,8 +40,8 @@ export default function ActionPanel({ gameState, myId, onAction }) {
   const handlePctClick = (pct) => {
     setSelectedPct(pct)
     const amount = Math.floor(pot * pct / 100)
-    // 确保不低于最小加注额
-    setRaiseAmount(Math.max(amount, minRaiseTotal))
+    // 确保在 [effectiveMin, myTotal] 范围内
+    setRaiseAmount(Math.min(Math.max(amount, effectiveMin), myTotal))
   }
 
   // 拖动条变化
@@ -94,13 +96,13 @@ export default function ActionPanel({ gameState, myId, onAction }) {
           <input
             type="range"
             className="raise-slider"
-            min={minRaiseTotal}
+            min={effectiveMin}
             max={myTotal}
             value={raiseAmount}
             onChange={handleSliderChange}
           />
           <div className="slider-labels">
-            <span>{minRaiseTotal}</span>
+            <span>{effectiveMin}</span>
             <span>底池: {pot}</span>
             <span>{myTotal}</span>
           </div>
