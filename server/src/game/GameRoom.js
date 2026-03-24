@@ -130,6 +130,7 @@ export default class GameRoom {
     this.phase = 'PREFLOP'
 
     this._notifyChange()
+    this._startTurnTimer()
   }
 
   _postBlind(index, amount) {
@@ -255,6 +256,7 @@ export default class GameRoom {
 
     this.currentPlayerIndex = next
     this._notifyChange()
+    this._startTurnTimer()
   }
 
   _bettingRoundComplete() {
@@ -262,6 +264,24 @@ export default class GameRoom {
     const activePlayers = this.players.filter(p => p.status === 'active')
     return activePlayers.every(p => p.hasActed) &&
            activePlayers.every(p => p.bet === this.currentBet)
+  }
+
+  _startTurnTimer() {
+    clearTimeout(this.turnTimer)
+    this.turnTimer = setTimeout(() => {
+      this.turnTimer = null
+      const currentPlayer = this.players[this.currentPlayerIndex]
+      if (!currentPlayer) return
+      if (this.phase === 'WAITING' || this.phase === 'SHOWDOWN') return
+      if (currentPlayer.status === 'active') {
+        // AFK 或其他未行动情况：直接 fold
+        try { this.handleAction(currentPlayer.id, 'fold') } catch (e) { /* 忽略 */ }
+      } else if (currentPlayer.status === 'disconnected') {
+        // 断线玩家：直接标为 fold 并推进（不走 handleAction，因其要求 active 状态）
+        currentPlayer.status = 'folded'
+        this._advance()
+      }
+    }, TURN_TIMEOUT)
   }
 
   _nextPhase() {
@@ -307,10 +327,14 @@ export default class GameRoom {
     const canAct = this.players.filter(p => p.status === 'active')
     if (canAct.length === 0) {
       setTimeout(() => { if (this.phase !== 'WAITING') this._nextPhase() }, 500)
+    } else {
+      this._startTurnTimer()
     }
   }
 
   _endRound() {
+    clearTimeout(this.turnTimer)
+    this.turnTimer = null
     this.phase = 'SHOWDOWN'
     const activePlayers = this.players.filter(p => p.status === 'active' || p.status === 'allin')
 
@@ -436,6 +460,8 @@ export default class GameRoom {
 
   // 游戏中途人数不足时，重置为等待界面（只保留仍在线的玩家）
   resetToWaiting(connectedIds) {
+    clearTimeout(this.turnTimer)
+    this.turnTimer = null
     this.players = this.players.filter(p => connectedIds.includes(p.id))
     this.phase = 'WAITING'
     this.communityCards = []
