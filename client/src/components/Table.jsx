@@ -30,14 +30,13 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
   // 先把自己放到位置0（底部中间）
   orderedPlayers[0] = { ...players[myIndex], originalIndex: myIndex }
 
-  // 其他玩家顺时针排列（从右边开始）
-  let posIndex = 0
+  // 其他玩家顺时针排列（从右边开始），从 myIndex+1 起遍历，保证行动顺序与视觉顺序一致
   const otherPositions = [1, 2, 3, 4, 5, 6, 7] // 顺时针位置序列（跳过0）
-  players.forEach((player, i) => {
-    if (i === myIndex) return
-    orderedPlayers[otherPositions[posIndex]] = { ...player, originalIndex: i }
-    posIndex++
-  })
+  const n = players.length
+  for (let offset = 1, posIndex = 0; offset < n; offset++, posIndex++) {
+    const i = (myIndex + offset) % n
+    orderedPlayers[otherPositions[posIndex]] = { ...players[i], originalIndex: i }
+  }
 
   const isMyTurn = players[gameState.currentPlayerIndex]?.id === myId
   const isReady = myPlayer?.status === 'ready'
