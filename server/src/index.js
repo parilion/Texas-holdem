@@ -106,9 +106,17 @@ io.on('connection', (socket) => {
       }
       socket.join(existingSession.roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
+      room.onOutTimeout = (pid) => handleMidGameLeave(room, pid)
+      room.onOutStart = (pid, seconds) => io.to(pid).emit('player:out', { seconds })
       const messages = manager.getRoomMessages(existingSession.roomId)
       const lastSettlement = manager.getRoomSettlement(existingSession.roomId)
       socket.emit('session:restored', { roomId: existingSession.roomId, messages, lastSettlement, ...room.getPublicState(playerId) })
+      // 若玩家已是 out 状态且计时器仍在运行，补发剩余倒计时
+      if (room.outTimers.has(playerId)) {
+        const startedAt = room.outTimerStarts.get(playerId) || Date.now()
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000)
+        io.to(playerId).emit('player:out', { seconds: Math.max(1, 20 - elapsed) })
+      }
       broadcastRoomState(room, {}, playerId) // 通知其他玩家该玩家重连，自身已由 session:restored 收到完整状态
     } else {
       sessionManager.clearRoom(playerId)
@@ -129,6 +137,8 @@ io.on('connection', (socket) => {
       sessionManager.setRoom(playerId, room.roomId)
       socket.join(room.roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
+      room.onOutTimeout = (pid) => handleMidGameLeave(room, pid)
+      room.onOutStart = (pid, seconds) => io.to(pid).emit('player:out', { seconds })
       const lastSettlement = manager.getRoomSettlement(room.roomId)
       socket.emit('room:joined', { roomId: room.roomId, lastSettlement, ...room.getPublicState(playerId) })
     } catch (e) {
@@ -143,6 +153,8 @@ io.on('connection', (socket) => {
       socket.join(roomId)
       const room = manager.getRoom(roomId)
       room.onStateChange = (extra) => broadcastRoomState(room, extra)
+      room.onOutTimeout = (pid) => handleMidGameLeave(room, pid)
+      room.onOutStart = (pid, seconds) => io.to(pid).emit('player:out', { seconds })
       const lastSettlement = manager.getRoomSettlement(roomId)
       socket.emit('room:joined', { roomId, lastSettlement, ...roomData })
       broadcastRoomState(room, {}, playerId) // 通知其他玩家有新玩家加入，自身已由 room:joined 收到完整状态
@@ -193,6 +205,7 @@ io.on('connection', (socket) => {
       const player = room.players.find(p => p.id === playerId)
       if (!player) throw new Error('玩家不存在')
       const actualAmount = Math.min(Math.max(1, amount), 1000)
+      room._cancelOutTimer(playerId)
       player.chips = actualAmount
       player.status = 'waiting'
       io.to(playerId).emit('player:replenished', { chips: actualAmount })
@@ -223,9 +236,9 @@ io.on('connection', (socket) => {
     if (player && (player.status === 'active' || player.status === 'disconnected')) {
       if (room.players[room.currentPlayerIndex]?.id === pid) {
         try { room.handleAction(pid, 'fold') } catch (e) { /* 忽略 */ }
-      } else {
-        player.status = 'folded'
       }
+      // 退出玩家直接移除（不从 room.players 留下导致幽灵占位）
+      room.removePlayer(pid)
     }
     manager.playerRoom.delete(pid)
     sessionManager.clearRoom(pid)

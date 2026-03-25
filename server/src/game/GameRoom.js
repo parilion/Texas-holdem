@@ -23,6 +23,36 @@ export default class GameRoom {
     this.turnTimer = null
     this.lastAggressor = -1 // 最后一个加注的玩家索引
     this.onStateChange = null // 回调：状态变更时通知外部
+    this.outTimers = new Map() // playerId -> timeoutId，out 玩家 20s 超时自动踢出
+    this.outTimerStarts = new Map() // playerId -> startTimestamp，用于断线重连时计算剩余时间
+    this.onOutTimeout = null // (playerId) => {}，由 index.js 注入，触发真正的移除和广播
+    this.onOutStart = null // (playerId, seconds) => {}，由 index.js 注入，通知客户端倒计时开始
+  }
+
+  // 开始 out 玩家 20s 超时计时器
+  _startOutTimer(playerId) {
+    this._cancelOutTimer(playerId)
+    const SECONDS = 20
+    this.outTimerStarts.set(playerId, Date.now())
+    const timer = setTimeout(() => {
+      this.outTimers.delete(playerId)
+      this.outTimerStarts.delete(playerId)
+      // 只有 WAITING 阶段的 out 玩家才需要被踢；游戏已开始则忽略
+      if (this.phase !== 'WAITING') return
+      if (this.onOutTimeout) this.onOutTimeout(playerId)
+    }, SECONDS * 1000)
+    this.outTimers.set(playerId, timer)
+    if (this.onOutStart) this.onOutStart(playerId, SECONDS)
+  }
+
+  // 取消 out 玩家计时器（玩家补筹时调用）
+  _cancelOutTimer(playerId) {
+    const timer = this.outTimers.get(playerId)
+    if (timer) {
+      clearTimeout(timer)
+      this.outTimers.delete(playerId)
+      this.outTimerStarts.delete(playerId)
+    }
   }
 
   addPlayer(id, name) {
@@ -45,13 +75,21 @@ export default class GameRoom {
 
   removePlayer(id) {
     const playerIndex = this.players.findIndex(p => p.id === id)
+    if (playerIndex === -1) return
     const wasDealer = this.players[playerIndex]?.isDealer
 
     this.players = this.players.filter(p => p.id !== id)
 
+    // 调整 currentPlayerIndex：若移除位置在当前操作玩家之前，索引 -1
+    if (playerIndex < this.currentPlayerIndex) {
+      this.currentPlayerIndex -= 1
+    }
+    if (this.players.length > 0 && this.currentPlayerIndex >= this.players.length) {
+      this.currentPlayerIndex = 0
+    }
+
     // 如果被移除的是房主，将房主顺延给下一位玩家
     if (wasDealer && this.players.length > 0) {
-      // 找到被移除玩家的位置，下一位玩家成为新房主
       this.dealer = playerIndex % this.players.length
       this.players[this.dealer].isDealer = true
     } else if (playerIndex < this.dealer) {
@@ -72,8 +110,8 @@ export default class GameRoom {
     if (this.players.length < 2) throw new Error('至少需要 2 名玩家')
     if (this.phase !== 'WAITING') throw new Error('游戏已在进行中')
 
-    // 检查所有非房主玩家是否都已准备（房主无需按准备）
-    const allReady = this.players.every(p => p.isDealer || p.status === 'ready' || p.status === 'out')
+    // 检查所有非房主玩家是否都已准备（房主无需按准备）；out 玩家不能跳过，必须等其补筹或离开
+    const allReady = this.players.every(p => p.isDealer || p.status === 'ready')
     if (!allReady) throw new Error('还有人没准备')
 
     this.deck = new Deck().shuffle()
@@ -441,8 +479,12 @@ export default class GameRoom {
       this.phase = 'WAITING'
       this.players.forEach(p => {
         p.isDealer = false
-        if (p.chips <= 0) p.status = 'out'  // 标记无筹码玩家，不再自动踢出，由玩家自行选择补筹或离开
-        else p.status = 'ready'
+        if (p.chips <= 0) {
+          p.status = 'out'
+          this._startOutTimer(p.id)  // 20s 内未补筹则自动踢出
+        } else {
+          p.status = 'ready'
+        }
       })
       // dealer 推进，跳过 'out' 玩家，用计数器防止无限循环
       this.dealer = (this.dealer + 1) % this.players.length
