@@ -53,8 +53,8 @@ export function useGame() {
       setGameState(data)
     },
     'game:state': (data) => {
-      // 过滤来自旧房间的延迟推送，防止闪回
-      if (currentRoomIdRef.current !== null && data.roomId !== currentRoomIdRef.current) return
+      // 严格匹配房间号，防止旧房间延迟消息闪回
+      if (data.roomId !== currentRoomIdRef.current) return
       setGameState(data)
     },
     'player:kicked': (data) => {
