@@ -6,7 +6,7 @@ import './index.css'
 
 export default function App() {
   const {
-    gameState, roomId, myId, error, kickMessage, isRestoring,
+    gameState, roomId, myId, error, kickMessage, isRestoring, outCountdown,
     setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom, doReplenish,
   } = useGame()
 
@@ -49,6 +49,7 @@ export default function App() {
       onUnready={doUnready}
       onLeaveRoom={leaveRoom}
       doReplenish={doReplenish}
+      outCountdown={outCountdown}
       onSendChat={handleSendChat}
       error={error}
     />

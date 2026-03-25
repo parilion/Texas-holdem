@@ -10,7 +10,7 @@ import './Table.css'
 // 位置索引: 0=bottom(我), 1=bottom-right, 2=right, 3=top-right, 4=top, 5=top-left, 6=left, 7=bottom-left
 const POSITIONS = ['bottom', 'bottom-right', 'right', 'top-right', 'top', 'top-left', 'left', 'bottom-left']
 
-export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, onSendChat, error }) {
+export default function Table({ gameState, myId, roomId, onAction, onStartGame, onReady, onUnready, onLeaveRoom, doReplenish, outCountdown, onSendChat, error }) {
   const [settlement, setSettlement] = useState(null)
   const [lastSettlement, setLastSettlement] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
@@ -190,9 +190,10 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
           </div>
         </div>
       )}
-      {/* 筹码归零时显示补筹界面：结算弹窗关闭后自动出现，刷新后也能恢复 */}
-      {!settlement && phase === 'WAITING' && myPlayer?.chips === 0 && (
+      {/* 筹码归零时显示补筹界面：倒计时激活时显示，刷新重连后若 status=out 也兜底显示 */}
+      {!settlement && (outCountdown != null || (phase === 'WAITING' && myPlayer?.status === 'out')) && (
         <ReplenishPanel
+          countdown={outCountdown}
           onReplenish={doReplenish}
           onLeaveRoom={onLeaveRoom}
         />

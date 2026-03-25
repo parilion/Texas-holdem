@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function ReplenishPanel({ onReplenish, onLeaveRoom }) {
+export default function ReplenishPanel({ onReplenish, onLeaveRoom, countdown }) {
   const [amount, setAmount] = useState('')
 
   const handleChange = (e) => {
@@ -18,7 +18,10 @@ export default function ReplenishPanel({ onReplenish, onLeaveRoom }) {
     <div className="replenish-overlay">
       <div className="replenish-panel">
         <div className="replenish-title">💰 筹码不足</div>
-        <div className="replenish-desc">请选择补充筹码或退出房间</div>
+        <div className="replenish-desc">
+          请选择补充筹码或退出房间
+          {countdown != null && <span className="replenish-countdown">（{countdown}s 后自动踢出）</span>}
+        </div>
         <div className="replenish-form">
           <input
             type="number"

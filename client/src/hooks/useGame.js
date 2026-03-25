@@ -7,9 +7,11 @@ export function useGame() {
   const [myId, setMyId] = useState(null)
   const [error, setError] = useState(null)
   const [kickMessage, setKickMessage] = useState(null)
+  const [outCountdown, setOutCountdown] = useState(null)
   // 若 localStorage 有 playerId，说明可能有旧会话，先显示"恢复中"
   const [isRestoring, setIsRestoring] = useState(() => !!localStorage.getItem('playerId'))
   const restoreTimerRef = useRef(null)
+  const outCountdownRef = useRef(null)
   // 用 ref 同步追踪当前 roomId，避免 game:state 闭包读到旧值
   const currentRoomIdRef = useRef(null)
 
@@ -57,8 +59,27 @@ export function useGame() {
       if (data.roomId !== currentRoomIdRef.current) return
       setGameState(data)
     },
+    'player:out': ({ seconds }) => {
+      setOutCountdown(seconds)
+      clearInterval(outCountdownRef.current)
+      outCountdownRef.current = setInterval(() => {
+        setOutCountdown(prev => {
+          if (prev === null || prev <= 1) {
+            clearInterval(outCountdownRef.current)
+            return null
+          }
+          return prev - 1
+        })
+      }, 1000)
+    },
+    'player:replenished': () => {
+      clearInterval(outCountdownRef.current)
+      setOutCountdown(null)
+    },
     'player:kicked': (data) => {
       clearTimeout(restoreTimerRef.current)
+      clearInterval(outCountdownRef.current)
+      setOutCountdown(null)
       setKickMessage(data.message)
       currentRoomIdRef.current = null
       setRoomId(null)
@@ -97,6 +118,8 @@ export function useGame() {
 
   const leaveRoom = useCallback(() => {
     clearTimeout(restoreTimerRef.current)
+    clearInterval(outCountdownRef.current)
+    setOutCountdown(null)
     getSocket().emit('room:leave')
     currentRoomIdRef.current = null
     setRoomId(null)
@@ -109,7 +132,7 @@ export function useGame() {
   }, [])
 
   return {
-    gameState, roomId, myId, error, kickMessage, isRestoring,
+    gameState, roomId, myId, error, kickMessage, isRestoring, outCountdown,
     setKickMessage, createRoom, joinRoom, startGame, doAction, doReady, doUnready, leaveRoom, doReplenish,
   }
 }
