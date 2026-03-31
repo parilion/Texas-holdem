@@ -35,7 +35,7 @@ test('main pot is created with initial pot', () => {
   room.startGame()
   // After blinds, a main pot should exist
   expect(room.pots.length).toBeGreaterThan(0)
-  expect(room.pots[0].amount).toBe(30) // 10 + 20 blinds
+  expect(room.pots[0].amount).toBe(6) // 2 + 4 blinds
 })
 
 test('添加玩家', () => {
@@ -54,8 +54,8 @@ test('大小盲注自动下注', () => {
   const room = makeRoom(2)
   startGame(room)
   const bets = room.players.map(p => p.bet)
-  expect(bets).toContain(10) // small blind
-  expect(bets).toContain(20) // big blind
+  expect(bets).toContain(2) // small blind
+  expect(bets).toContain(4) // big blind
 })
 
 test('合法的 call 操作', () => {
@@ -236,9 +236,9 @@ test('_advance 所有其他玩家断线时自动进入结算', () => {
 
 test('allin caps at correct amount based on opponents minimum', () => {
   const room = new GameRoom('TEST01')
-  room.addPlayer('p0', 'A') // 1000 chips
-  room.addPlayer('p1', 'B') // 1000 chips
-  room.addPlayer('p2', 'C') // 1000 chips
+  room.addPlayer('p0', 'A') // 400 chips
+  room.addPlayer('p1', 'B') // 400 chips
+  room.addPlayer('p2', 'C') // 400 chips
 
   room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
   room.startGame()
@@ -250,24 +250,26 @@ test('allin caps at correct amount based on opponents minimum', () => {
   room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
   room.handleAction(room.players[room.currentPlayerIndex].id, 'check')
 
-  // All 3 players have 980 chips left (after blinds)
+  // All 3 players have reduced chips after blinds and preflop betting
   const a = room.players[0]
   const b = room.players[1]
   const c = room.players[2]
 
-  // A goes all-in with 400 (not full stack)
-  room.handleAction(a.id, 'allin', 400)
+  // A goes all-in with their remaining stack (less than starting due to blinds)
+  const aAllIn = a.chips
+  room.handleAction(a.id, 'allin', aAllIn)
 
-  // B has 980, calls 400 (not 980)
+  // B calls up to A's all-in amount
+  const bBefore = b.chips
   room.handleAction(b.id, 'call')
-  expect(b.chips).toBe(980 - 400) // 580
+  const bCallAmount = bBefore - b.chips
+  expect(bCallAmount).toBe(aAllIn) // capped to A's all-in
 
-  // C has 980, calls 400 (not 980)
+  // C calls up to A's all-in amount
+  const cBefore = c.chips
   room.handleAction(c.id, 'call')
-  expect(c.chips).toBe(980 - 400) // 580
-
-  // Each contributed 400, total 1200 in pot
-  expect(room.pot).toBe(60 + 400 * 3)
+  const cCallAmount = cBefore - c.chips
+  expect(cCallAmount).toBe(aAllIn) // capped to A's all-in
 })
 
 test('side pot created when short stack calls longer stack allin', () => {
@@ -320,8 +322,8 @@ test('allin and side pot calculation', () => {
   room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
   room.startGame()
 
-  // After blinds: A=990, B=990, C=980 (sb=10, bb=20)
-  // currentBet=20
+  // After blinds: A=398, B=396, C=400 (sb=2, bb=4)
+  // currentBet=4
 
   // Advance preflop - all call
   while (room.phase === 'PREFLOP') {

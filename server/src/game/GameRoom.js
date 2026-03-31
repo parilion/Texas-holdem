@@ -1,9 +1,9 @@
 import Deck from './Deck.js'
 import HandEvaluator from './HandEvaluator.js'
 
-const SMALL_BLIND = 10
-const BIG_BLIND = 20
-const STARTING_CHIPS = 1000
+const SMALL_BLIND = 2
+const BIG_BLIND = 4
+const STARTING_CHIPS = 400
 const TURN_TIMEOUT = 30000
 
 const PHASES = ['WAITING', 'PREFLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN']
@@ -27,6 +27,7 @@ export default class GameRoom {
     this.outTimerStarts = new Map() // playerId -> startTimestamp，用于断线重连时计算剩余时间
     this.onOutTimeout = null // (playerId) => {}，由 index.js 注入，触发真正的移除和广播
     this.onOutStart = null // (playerId, seconds) => {}，由 index.js 注入，通知客户端倒计时开始
+    this.leaderboard = [] // { id, name, currentChips, totalChange } 积分榜
   }
 
   // 开始 out 玩家 20s 超时计时器
@@ -459,6 +460,9 @@ export default class GameRoom {
       chips: p.chips,
     }))
 
+    // 更新积分榜
+    this._updateLeaderboard(playerResults)
+
     this._notifyChange({
       winner: winners.map(w => w.id).join(','),
       winnerName: winners.length === 1 ? winner.name : winners.map(w => w.name).join(' & '),
@@ -524,6 +528,30 @@ export default class GameRoom {
       this.dealer = 0
       this.players[0].isDealer = true
     }
+  }
+
+  // 更新积分榜
+  _updateLeaderboard(playerResults) {
+    playerResults.forEach(result => {
+      if (result.chipChange === 0) return // out 玩家不计入积分榜
+      let entry = this.leaderboard.find(e => e.id === result.id)
+      if (entry) {
+        entry.totalChange += result.chipChange
+        entry.currentChips = result.chips
+      } else {
+        this.leaderboard.push({
+          id: result.id,
+          name: result.name,
+          currentChips: result.chips,
+          totalChange: result.chipChange,
+        })
+      }
+    })
+  }
+
+  // 获取排序后的积分榜
+  getLeaderboard() {
+    return [...this.leaderboard].sort((a, b) => b.totalChange - a.totalChange)
   }
 
   getPublicState(viewerId) {

@@ -1,0 +1,126 @@
+.leaderboard-panel {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 150;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.leaderboard-toggle {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  padding: 12px 8px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  letter-spacing: 2px;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s;
+}
+
+.leaderboard-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.leaderboard-content {
+  background: linear-gradient(145deg, #1a2a1a, #0d1a0d);
+  border: 2px solid #8B6914;
+  border-right: none;
+  border-radius: 12px 0 0 12px;
+  padding: 1rem;
+  min-width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.leaderboard-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.leaderboard-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.leaderboard-content::-webkit-scrollbar-thumb {
+  background: rgba(244, 196, 48, 0.4);
+  border-radius: 2px;
+}
+
+.leaderboard-title {
+  font-size: 1rem;
+  color: #f4c430;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 0.8rem;
+  letter-spacing: 2px;
+}
+
+.leaderboard-empty {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.leaderboard-row:first-child {
+  background: rgba(244, 196, 48, 0.15);
+  border: 1px solid rgba(244, 196, 48, 0.3);
+}
+
+.lb-rank {
+  width: 20px;
+  font-weight: bold;
+  color: #f4c430;
+  text-align: center;
+}
+
+.lb-name {
+  flex: 1;
+  font-weight: bold;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-change {
+  width: 50px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.lb-chips {
+  width: 70px;
+  text-align: right;
+  color: #f4c430;
+  font-size: 0.8rem;
+}
+
+.positive { color: #2ecc71; }
+.negative { color: #e74c3c; }

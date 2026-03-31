@@ -58,6 +58,8 @@ io.on('connection', (socket) => {
         showdownPlayers: showdownPlayers || []
       }
       manager.setRoomSettlement(room.roomId, settlement)
+      // 广播更新后的积分榜
+      io.to(room.roomId).emit('leaderboard:update', room.getLeaderboard())
     }
 
     // 如果 extra 没有 winner 信息但有 lastSettlement（进入 WAITING 阶段时），

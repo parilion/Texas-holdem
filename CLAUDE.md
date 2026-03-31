@@ -63,9 +63,9 @@ WAITING → PREFLOP → FLOP → TURN → RIVER → SHOWDOWN → WAITING
 
 ## Constants
 
-- Small blind: 10
-- Big blind: 20
-- Starting chips: 1000
+- Small blind: 2
+- Big blind: 4
+- Starting chips: 400
 - Max players: 9
 
 ## Testing

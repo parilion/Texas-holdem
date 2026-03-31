@@ -4,6 +4,7 @@ import ActionPanel from './ActionPanel'
 import Card from './Card'
 import ReplenishPanel from './ReplenishPanel'
 import ChatBox from './ChatBox'
+import LeaderboardPanel from './LeaderboardPanel'
 import { getSocket } from '../hooks/useSocket'
 import './Table.css'
 
@@ -204,6 +205,8 @@ export default function Table({ gameState, myId, roomId, onAction, onStartGame, 
         onSendMessage={onSendChat}
         myId={myId}
       />
+
+      <LeaderboardPanel />
     </div>
   )
 }
