@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
 export default function ActionPanel({ gameState, myId, onAction }) {
-  const BIG_BLIND = 20
+  const BIG_BLIND = 4
   const me = gameState?.players?.find(p => p.id === myId)
   const isMyTurn = gameState?.players?.[gameState.currentPlayerIndex]?.id === myId
   const canCheck = isMyTurn && (gameState.currentBet === 0 || me?.bet === gameState.currentBet)

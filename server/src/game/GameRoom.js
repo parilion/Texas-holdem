@@ -207,7 +207,7 @@ export default class GameRoom {
         break
       }
       case 'raise': {
-        const minRaiseAmount = this.currentBet + Math.max(BIG_BLIND, this.currentBet)
+        const minRaiseAmount = this.currentBet + 4
         // 只有筹码足够的情况下才验证最小加注额
         if (player.bet + player.chips >= minRaiseAmount && amount < minRaiseAmount) {
           throw new Error(`最小加注额为 ${minRaiseAmount}`)
