@@ -362,119 +362,179 @@ test('allin and side pot calculation', () => {
 
 // ——— 边池分配测试 ———
 
-test('两人 allin：主池 + 边池 = 总池，主池 = 短码*2', () => {
+test('两人 allin：A赢，主池全得，边池为0', () => {
   const room = new GameRoom('TEST01')
   room.addPlayer('p0', 'A')
   room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C') // 弃牌
 
-  room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
-  room.startGame()
+  // 设置每人不同筹码
+  room.players[0].chips = 100
+  room.players[0].chipsBefore = 100
+  room.players[1].chips = 200
+  room.players[1].chipsBefore = 200
+  room.players[2].chips = 300
+  room.players[2].chipsBefore = 300
 
-  // 走完 preflop
-  while (room.phase === 'PREFLOP') {
-    const curr = room.players[room.currentPlayerIndex]
-    if (!curr) break
-    room.handleAction(curr.id, 'call')
-  }
+  // 设置庄家和状态
+  room.dealer = 0
+  room.phase = 'SHOWDOWN'
+  room.communityCards = [
+    { suit: 'H', rank: 'A' }, { suit: 'D', rank: 'K' }, { suit: 'S', rank: 'Q' },
+    { suit: 'C', rank: 'J' }, { suit: 'H', rank: 'T' }
+  ]
 
-  const a = room.players.find(p => p.id === 'p0')
-  const b = room.players.find(p => p.id === 'p1')
+  // A皇家同花顺，C和B也弃牌了但仍然有贡献
+  room.players[0].holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'H', rank: 'K' }]
+  room.players[0].status = 'allin'
+  room.players[1].holeCards = [{ suit: 'D', rank: 'A' }, { suit: 'D', rank: 'Q' }]
+  room.players[1].status = 'folded' // 弃牌
+  room.players[2].holeCards = [{ suit: 'S', rank: '2' }, { suit: 'C', rank: '3' }]
+  room.players[2].status = 'folded'
 
-  // 记录 allin 前筹码
-  const aChipsBefore = a.chips
-  const bChipsBefore = b.chips
+  // 设置底池：A投入100，B投入100，C投入0
+  room.pot = 200
+  room.pots = [{ amount: 200 }]
 
-  // A allin，B call
-  const curr = room.players[room.currentPlayerIndex]
-  if (curr.id === a.id) {
-    room.handleAction(a.id, 'allin')
-  } else {
-    room.handleAction(b.id, 'allin')
-  }
-  const curr2 = room.players[room.currentPlayerIndex]
-  if (curr2.id === a.id) {
-    room.handleAction(a.id, 'call')
-  } else {
-    room.handleAction(b.id, 'call')
-  }
+  // 记录初始筹码
+  const aInit = room.players[0].chips
+  const bInit = room.players[1].chips
+  const cInit = room.players[2].chips
 
-  // 计算实际投入
-  const aInvested = aChipsBefore - a.chips
-  const bInvested = bChipsBefore - b.chips
-  const totalPot = room.pot
+  room._endRound()
 
-  // 主池 = min(A投入, B投入) * 2
-  const minInvest = Math.min(aInvested, bInvested)
-  const mainPot = minInvest * 2
-  // 边池 = 总池 - 主池
-  const sidePot = totalPot - mainPot
-
-  // 验证：主池 + 边池 = 总池
-  expect(mainPot + sidePot).toBe(totalPot)
-  // 验证：主池 = 短码 * 2
-  expect(mainPot).toBe(minInvest * 2)
-  // 验证：主池 <= 总投入
-  expect(mainPot).toBeLessThanOrEqual(aInvested + bInvested)
+  // 验证：A赢了皇家同花顺，应该赢得全部200筹码
+  expect(room.players[0].chips).toBe(aInit + 200)
+  expect(room.players[1].chips).toBe(bInit) // B没赢没输
+  expect(room.players[2].chips).toBe(cInit) // C没参与
 })
 
-test('三人 allin：主池 = 最短码*3，边池结构正确', () => {
+test('两人 allin 筹码不同：正确分配主池和边池', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A') // 长码
+  room.addPlayer('p1', 'B') // 短码
+
+  // 设置不同筹码量
+  room.players[0].chips = 300  // 投入100
+  room.players[0].chipsBefore = 400
+  room.players[1].chips = 100  // 投入100
+  room.players[1].chipsBefore = 200
+
+  room.dealer = 0
+  room.phase = 'SHOWDOWN'
+  // A♥ K♥ 在手牌，公共牌有 Q♥ J♥ T♥ = A同花顺
+  room.communityCards = [
+    { suit: 'H', rank: 'Q' }, { suit: 'H', rank: 'J' }, { suit: 'H', rank: 'T' },
+    { suit: 'C', rank: '2' }, { suit: 'D', rank: '3' }
+  ]
+
+  // A同花顺赢，B是顺子
+  room.players[0].holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'H', rank: 'K' }]
+  room.players[0].status = 'allin'
+  room.players[1].holeCards = [{ suit: 'D', rank: 'A' }, { suit: 'C', rank: 'Q' }]
+  room.players[1].status = 'allin'
+
+  // 总池 = 200 (A投入100 + B投入100)
+  room.pot = 200
+  room.pots = [{ amount: 200 }]
+
+  const aInit = room.players[0].chips
+  const bInit = room.players[1].chips
+
+  room._endRound()
+
+  // A赢了全部200
+  expect(room.players[0].chips).toBe(aInit + 200)
+  expect(room.players[1].chips).toBe(bInit) // B输
+})
+
+test('三人 allin：主池三人平分，边池两人平分', () => {
   const room = new GameRoom('TEST01')
   room.addPlayer('p0', 'A')
   room.addPlayer('p1', 'B')
   room.addPlayer('p2', 'C')
 
-  room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
-  room.startGame()
+  // 设置筹码：A投入100，B投入100，C投入100
+  room.players[0].chips = 300
+  room.players[0].chipsBefore = 400
+  room.players[1].chips = 300
+  room.players[1].chipsBefore = 400
+  room.players[2].chips = 300
+  room.players[2].chipsBefore = 400
 
-  // 走完 preflop
-  while (room.phase === 'PREFLOP') {
-    const curr = room.players[room.currentPlayerIndex]
-    if (!curr) break
-    room.handleAction(curr.id, 'call')
-  }
+  room.dealer = 0
+  room.phase = 'SHOWDOWN'
+  // A♥ K♥ 在手牌，公共牌有 Q♥ J♥ T♥ = A同花顺
+  room.communityCards = [
+    { suit: 'H', rank: 'Q' }, { suit: 'H', rank: 'J' }, { suit: 'H', rank: 'T' },
+    { suit: 'C', rank: '2' }, { suit: 'D', rank: '3' }
+  ]
 
-  const a = room.players.find(p => p.id === 'p0')
-  const b = room.players.find(p => p.id === 'p1')
-  const c = room.players.find(p => p.id === 'p2')
+  // A同花顺赢，B是对A，C是对K
+  room.players[0].holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'H', rank: 'K' }]
+  room.players[0].status = 'allin'
+  room.players[1].holeCards = [{ suit: 'D', rank: 'A' }, { suit: 'C', rank: 'Q' }]
+  room.players[1].status = 'allin'
+  room.players[2].holeCards = [{ suit: 'S', rank: '2' }, { suit: 'C', rank: '3' }]
+  room.players[2].status = 'allin'
 
-  // 记录 allin 前筹码
-  const aChipsBefore = a.chips
-  const bChipsBefore = b.chips
-  const cChipsBefore = c.chips
+  room.pot = 300
+  room.pots = [{ amount: 300 }]
 
-  // 让三人依次 all-in
-  let iterations = 0
-  while (room.phase !== 'SHOWDOWN' && iterations < 20) {
-    iterations++
-    const curr = room.players[room.currentPlayerIndex]
-    if (!curr || curr.status !== 'active') break
-    if (curr.chips > 0) {
-      try { room.handleAction(curr.id, 'allin') } catch (e) { break }
-    } else {
-      break
-    }
-  }
+  const aInit = room.players[0].chips
+  const bInit = room.players[1].chips
+  const cInit = room.players[2].chips
 
-  // 计算实际投入
-  const aInvested = aChipsBefore - a.chips
-  const bInvested = bChipsBefore - b.chips
-  const cInvested = cChipsBefore - c.chips
-  const totalPot = room.pot
+  room._endRound()
 
-  // 找到最短码
-  const minInvest = Math.min(aInvested, bInvested, cInvested)
-  // 主池 = 最短码 * 3
-  const mainPot = minInvest * 3
-  // 边池 = 总投入 - 主池
-  const totalInvested = aInvested + bInvested + cInvested
-  const sidePot = totalPot - mainPot
+  // A赢了全部300
+  expect(room.players[0].chips).toBe(aInit + 300)
+  expect(room.players[1].chips).toBe(bInit)
+  expect(room.players[2].chips).toBe(cInit)
+})
 
-  // 验证：主池 + 边池 = 总池
-  expect(mainPot + sidePot).toBe(totalPot)
-  // 验证：主池 = 最短码 * 3
-  expect(mainPot).toBe(minInvest * 3)
-  // 验证：主池 <= 总投入
-  expect(mainPot).toBeLessThanOrEqual(totalInvested)
-  // 验证：边池 >= 0
-  expect(sidePot).toBeGreaterThanOrEqual(0)
+test('三人 allin 筹码不同：主池三人平分，边池给长码', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A') // 长码
+  room.addPlayer('p1', 'B') // 中码
+  room.addPlayer('p2', 'C') // 短码
+
+  // A投入100，B投入100，C投入60（假设C all-in 60）
+  room.players[0].chips = 300  // 投入100
+  room.players[0].chipsBefore = 400
+  room.players[1].chips = 300  // 投入100
+  room.players[1].chipsBefore = 400
+  room.players[2].chips = 340  // 投入60
+  room.players[2].chipsBefore = 400
+
+  room.dealer = 0
+  room.phase = 'SHOWDOWN'
+  // A♥ K♥ 在手牌，公共牌有 Q♥ J♥ T♥ = A同花顺
+  room.communityCards = [
+    { suit: 'H', rank: 'Q' }, { suit: 'H', rank: 'J' }, { suit: 'H', rank: 'T' },
+    { suit: 'C', rank: '2' }, { suit: 'D', rank: '3' }
+  ]
+
+  // A同花顺赢，B是对A，C是对K
+  room.players[0].holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'H', rank: 'K' }]
+  room.players[0].status = 'allin'
+  room.players[1].holeCards = [{ suit: 'D', rank: 'A' }, { suit: 'C', rank: 'Q' }]
+  room.players[1].status = 'allin'
+  room.players[2].holeCards = [{ suit: 'S', rank: '2' }, { suit: 'C', rank: '3' }]
+  room.players[2].status = 'allin'
+
+  // 总投入 = 260
+  room.pot = 260
+  room.pots = [{ amount: 260 }]
+
+  const aInit = room.players[0].chips
+  const bInit = room.players[1].chips
+  const cInit = room.players[2].chips
+
+  room._endRound()
+
+  // A赢了全部260
+  expect(room.players[0].chips).toBe(aInit + 260)
+  expect(room.players[1].chips).toBe(bInit)
+  expect(room.players[2].chips).toBe(cInit)
 })

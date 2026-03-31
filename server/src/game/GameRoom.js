@@ -465,69 +465,47 @@ export default class GameRoom {
       )
       if (levelSize <= 0) continue
 
-      // 找出本层中手牌最强的玩家（仅在有多人时评估）
+      // 找出本层中手牌最强的玩家
       let potWinners = eligible.map(e => e.player)
-      // 过滤出有手牌的玩家（排除弃牌/断线的）
-      const withCards = potWinners.filter(p => p.holeCards && p.holeCards.length >= 2)
-      if (withCards.length > 1) {
+      // 过滤出有手牌且手牌完整的玩家
+      const withCards = potWinners.filter(p => p.holeCards && p.holeCards.length === 2)
+
+      let winnersToSplit = potWinners // 默认：所有 eligible 平分
+      let winnerName = potWinners.map(w => w.name).join(' & ')
+
+      if (withCards.length >= 1 && this.communityCards.length >= 5) {
+        // 有手牌的玩家才参与手牌比拼（需5张公共牌）
         const allCards = this.communityCards
         const evaluated = withCards.map(p => ({
           player: p,
           hand: HandEvaluator.evaluate([...p.holeCards, ...allCards])
-        }))
-        evaluated.sort((a, b) => HandEvaluator.compare(b.hand, a.hand))
-        const topHand = evaluated[0].hand
-        const cardWinners = evaluated
-          .filter(e => HandEvaluator.compare(e.hand, topHand) === 0)
-          .map(e => e.player)
-        // 同时有无手牌的玩家：有手牌的平分，无手牌的拿余数（按原始顺序）
-        const share = Math.floor(levelSize / withCards.length)
-        withCards.forEach(w => { w.chips += share })
-        const remainder = levelSize % withCards.length
-        if (remainder > 0) {
-          // 优先补偿有手牌的赢家，再给无手牌但 eligible 的玩家
-          if (cardWinners.length > 0) cardWinners[0].chips += remainder
-          else if (potWinners.length > withCards.length) {
-            const withoutCards = potWinners.find(p => !withCards.includes(p))
-            if (withoutCards) withoutCards.chips += remainder
+        })).filter(e => e.hand !== null)
+        if (evaluated.length > 0) {
+          evaluated.sort((a, b) => HandEvaluator.compare(b.hand, a.hand))
+          const topHand = evaluated[0].hand
+          const cardWinners = evaluated
+            .filter(e => HandEvaluator.compare(e.hand, topHand) === 0)
+            .map(e => e.player)
+
+          if (cardWinners.length > 0) {
+            winnersToSplit = cardWinners
+            winnerName = cardWinners.length === 1
+              ? cardWinners[0].name
+              : cardWinners.map(w => w.name).join(' & ')
           }
         }
-        accumulatedPot += levelSize
-        if (i === 0) {
-          mainWinnerName = cardWinners.length === 1
-            ? cardWinners[0].name
-            : cardWinners.length > 1
-              ? cardWinners.map(w => w.name).join(' & ')
-              : withCards.map(w => w.name).join(' & ')
-          mainWinAmount = levelSize
-        } else {
-          sidePotResults.push({
-            amount: levelSize,
-            winners: cardWinners.length > 0
-              ? cardWinners.map(w => w.id)
-              : withCards.map(w => w.id),
-            winnersName: cardWinners.length === 1
-              ? cardWinners[0].name
-              : cardWinners.length > 1
-                ? cardWinners.map(w => w.name).join(' & ')
-                : withCards.map(w => w.name).join(' & '),
-          })
-        }
-        continue
       }
 
       // 分配本层池
-      const share = Math.floor(levelSize / potWinners.length)
-      potWinners.forEach(w => { w.chips += share })
-      const remainder = levelSize % potWinners.length
-      if (remainder > 0) potWinners[0].chips += remainder
+      const share = Math.floor(levelSize / winnersToSplit.length)
+      winnersToSplit.forEach(w => { w.chips += share })
+      const remainder = levelSize % winnersToSplit.length
+      if (remainder > 0) winnersToSplit[0].chips += remainder
 
       accumulatedPot += levelSize
 
       if (i === 0) {
-        mainWinnerName = potWinners.length === 1
-          ? potWinners[0].name
-          : potWinners.map(w => w.name).join(' & ')
+        mainWinnerName = winnerName
         mainWinAmount = levelSize
       } else {
         sidePotResults.push({
