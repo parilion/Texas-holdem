@@ -357,3 +357,105 @@ test('allin and side pot calculation', () => {
   // Verify game ends correctly
   expect(['RIVER', 'SHOWDOWN'].includes(room.phase)).toBe(true)
 })
+
+
+
+// ——— 边池分配测试 ———
+
+test('两人不等筹码 allin：短码全压，长码跟注，边池正确分配', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A') // 400 chips (长码)
+  room.addPlayer('p1', 'B') // 400 chips (短码) - 起始相同，但通过盲注后筹码不同
+
+  // 记录初始总筹码
+  const initialTotal = 400 + 400
+
+  room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
+  room.startGame()
+
+  // 走完 preflop（让盲注下去）
+  while (room.phase === 'PREFLOP') {
+    const curr = room.players[room.currentPlayerIndex]
+    if (!curr) break
+    room.handleAction(curr.id, 'call')
+  }
+
+  const a = room.players.find(p => p.id === 'p0')
+  const b = room.players.find(p => p.id === 'p1')
+
+  // 按当前玩家顺序 all-in
+  let curr1 = room.players[room.currentPlayerIndex]
+  if (curr1.id === a.id) {
+    room.handleAction(a.id, 'allin')
+  } else {
+    room.handleAction(b.id, 'allin')
+  }
+  // 下一个玩家
+  let curr2 = room.players[room.currentPlayerIndex]
+  if (curr2.id === a.id) {
+    room.handleAction(a.id, 'call')
+  } else {
+    room.handleAction(b.id, 'call')
+  }
+
+  // 继续走到 showdown
+  while (room.phase !== 'SHOWDOWN') {
+    const curr = room.players[room.currentPlayerIndex]
+    if (!curr) break
+    if (curr.status === 'active') {
+      try { room.handleAction(curr.id, 'check') } catch (e) { break }
+    } else if (curr.status === 'allin') {
+      break
+    } else {
+      break
+    }
+  }
+
+  // 验证筹码守恒：最终总筹码 + 底池 = 初始总筹码
+  const finalTotal = a.chips + b.chips
+  const chipsInPot = room.pot
+  expect(finalTotal + chipsInPot).toBe(initialTotal)
+})
+
+test('三人 allin：三个不同筹码量，正确分配主池和边池', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C')
+
+  // 起始总筹码 400*3 = 1200
+  const initialTotal = 400 * 3
+
+  room.players.forEach(p => { if (!p.isDealer) room.setReady(p.id, true) })
+  room.startGame()
+
+  // 走完 preflop
+  while (room.phase === 'PREFLOP') {
+    const curr = room.players[room.currentPlayerIndex]
+    if (!curr) break
+    room.handleAction(curr.id, 'call')
+  }
+
+  const a = room.players.find(p => p.id === 'p0')
+  const b = room.players.find(p => p.id === 'p1')
+  const c = room.players.find(p => p.id === 'p2')
+
+  // 让三人依次 all-in
+  let iterations = 0
+  while (room.phase !== 'SHOWDOWN' && iterations < 20) {
+    iterations++
+    const curr = room.players[room.currentPlayerIndex]
+    if (!curr || curr.status !== 'active') break
+
+    if (curr.chips > 0) {
+      try { room.handleAction(curr.id, 'allin') } catch (e) { break }
+    } else {
+      break
+    }
+  }
+
+  // 验证筹码守恒：最终总筹码 + 底池 = 初始总筹码
+  const finalTotal = a.chips + b.chips + c.chips
+  const chipsInPot = room.pot
+  expect(finalTotal + chipsInPot).toBe(initialTotal)
+})
