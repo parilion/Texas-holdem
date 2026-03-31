@@ -422,34 +422,132 @@ export default class GameRoom {
       )
     }
 
-    // 退还超额筹码（单赢家场景才需要）
-    if (winners.length === 1) {
-      const winner = winners[0]
-      const winnerContrib = (winner.chipsBefore ?? winner.chips) - winner.chips
-      this.players.forEach(p => {
-        if (p.id === winner.id) return
-        if (p.status === 'out') return
-        const pContrib = (p.chipsBefore ?? p.chips) - p.chips
-        const excess = Math.max(0, pContrib - winnerContrib)
-        if (excess > 0) {
-          p.chips += excess
-          this.pot -= excess
-          if (this.pots.length > 0) this.pots[0].amount -= excess
-        }
-      })
-      winners[0].chips += this.pot
-      if (this.pots.length > 0) this.pots[0].amount = this.pot
-    } else {
-      // Split Pot：均分底池，奇数筹码给第一位赢家
-      const share = Math.floor(this.pot / winners.length)
-      winners.forEach(w => { w.chips += share })
-      const remainder = this.pot % winners.length
-      if (remainder > 0) winners[0].chips += remainder
-      if (this.pots.length > 0) this.pots[0].amount = this.pot
+    // ---- 边池分配算法 ----
+    // 计算每位玩家的总投入（排除 out/disconnected/folded）
+    const activeForPots = this.players.filter(p =>
+      p.status !== 'out' && p.status !== 'disconnected' && p.status !== 'folded'
+    )
+    const playerContribs = activeForPots.map(p => ({
+      player: p,
+      contrib: (p.chipsBefore ?? p.chips) - p.chips,
+    }))
+    // 按投入升序排列
+    playerContribs.sort((a, b) => a.contrib - b.contrib)
+
+    // 收集所有不重复的投入层级
+    const levels = []
+    const seen = new Set()
+    for (const { contrib } of playerContribs) {
+      if (contrib > 0 && !seen.has(contrib)) {
+        seen.add(contrib)
+        levels.push(contrib)
+      }
     }
 
-    const winner = winners[0]
-    const winAmount = this.pot
+    // 每个层级的投入玩家（ contrib >= level 且 < nextLevel）
+    let accumulatedPot = 0  // 已分配出去的筹码
+    let mainWinnerName = winners.length === 1 ? winners[0].name : winners.map(w => w.name).join(' & ')
+    let mainWinAmount = 0
+    const sidePotResults = []  // [{ amount, winners, winnersName }]
+
+    for (let i = 0; i < levels.length; i++) {
+      const level = levels[i]
+      const nextLevel = levels[i + 1] ?? Infinity
+      // 本层级的玩家：contrib >= level
+      const eligible = playerContribs.filter(pc => pc.contrib >= level)
+      const numEligible = eligible.length
+      if (numEligible === 0) continue
+
+      // 本层池大小：(nextLevel - level) * numEligible，但不超过剩余总池
+      const levelSize = Math.min(
+        (nextLevel - level) * numEligible,
+        this.pot - accumulatedPot
+      )
+      if (levelSize <= 0) continue
+
+      // 找出本层中手牌最强的玩家（仅在有多人时评估）
+      let potWinners = eligible.map(e => e.player)
+      // 过滤出有手牌的玩家（排除弃牌/断线的）
+      const withCards = potWinners.filter(p => p.holeCards && p.holeCards.length >= 2)
+      if (withCards.length > 1) {
+        const allCards = this.communityCards
+        const evaluated = withCards.map(p => ({
+          player: p,
+          hand: HandEvaluator.evaluate([...p.holeCards, ...allCards])
+        }))
+        evaluated.sort((a, b) => HandEvaluator.compare(b.hand, a.hand))
+        const topHand = evaluated[0].hand
+        const cardWinners = evaluated
+          .filter(e => HandEvaluator.compare(e.hand, topHand) === 0)
+          .map(e => e.player)
+        // 同时有无手牌的玩家：有手牌的平分，无手牌的拿余数（按原始顺序）
+        const share = Math.floor(levelSize / withCards.length)
+        withCards.forEach(w => { w.chips += share })
+        const remainder = levelSize % withCards.length
+        if (remainder > 0) {
+          // 优先补偿有手牌的赢家，再给无手牌但 eligible 的玩家
+          if (cardWinners.length > 0) cardWinners[0].chips += remainder
+          else if (potWinners.length > withCards.length) {
+            const withoutCards = potWinners.find(p => !withCards.includes(p))
+            if (withoutCards) withoutCards.chips += remainder
+          }
+        }
+        accumulatedPot += levelSize
+        if (i === 0) {
+          mainWinnerName = cardWinners.length === 1
+            ? cardWinners[0].name
+            : cardWinners.length > 1
+              ? cardWinners.map(w => w.name).join(' & ')
+              : withCards.map(w => w.name).join(' & ')
+          mainWinAmount = levelSize
+        } else {
+          sidePotResults.push({
+            amount: levelSize,
+            winners: cardWinners.length > 0
+              ? cardWinners.map(w => w.id)
+              : withCards.map(w => w.id),
+            winnersName: cardWinners.length === 1
+              ? cardWinners[0].name
+              : cardWinners.length > 1
+                ? cardWinners.map(w => w.name).join(' & ')
+                : withCards.map(w => w.name).join(' & '),
+          })
+        }
+        continue
+      }
+
+      // 分配本层池
+      const share = Math.floor(levelSize / potWinners.length)
+      potWinners.forEach(w => { w.chips += share })
+      const remainder = levelSize % potWinners.length
+      if (remainder > 0) potWinners[0].chips += remainder
+
+      accumulatedPot += levelSize
+
+      if (i === 0) {
+        mainWinnerName = potWinners.length === 1
+          ? potWinners[0].name
+          : potWinners.map(w => w.name).join(' & ')
+        mainWinAmount = levelSize
+      } else {
+        sidePotResults.push({
+          amount: levelSize,
+          winners: potWinners.map(w => w.id),
+          winnersName: potWinners.length === 1
+            ? potWinners[0].name
+            : potWinners.map(w => w.name).join(' & '),
+        })
+      }
+    }
+
+    // 处理剩余未分配筹码（理论上应为 0）
+    if (accumulatedPot < this.pot) {
+      // 把剩余筹码全给主池赢家
+      const remainder = this.pot - accumulatedPot
+      winners[0].chips += remainder
+      accumulatedPot = this.pot
+    }
+
     this.pot = 0
     if (this.pots.length > 0) this.pots[0].amount = 0
 
@@ -465,11 +563,12 @@ export default class GameRoom {
 
     this._notifyChange({
       winner: winners.map(w => w.id).join(','),
-      winnerName: winners.length === 1 ? winner.name : winners.map(w => w.name).join(' & '),
-      winnerChips: winAmount,
+      winnerName: mainWinnerName,
+      winnerChips: mainWinAmount,
       playerResults,
       showdownPlayers,
       winningCommunityCards,
+      sidePotResults,
     })
 
     // 准备下局
