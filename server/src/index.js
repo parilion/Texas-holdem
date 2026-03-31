@@ -232,14 +232,16 @@ io.on('connection', (socket) => {
     })
   })
 
-  // 游戏中途玩家离开的公共逻辑（宽限期超时 / 主动离开均适用）
+  // 游戏中途玩家离开的公共逻辑（宽限期超时 / 主动离开 / out 超时均适用）
   function handleMidGameLeave(room, pid) {
     const player = room.players.find(p => p.id === pid)
     if (player && (player.status === 'active' || player.status === 'disconnected')) {
       if (room.players[room.currentPlayerIndex]?.id === pid) {
         try { room.handleAction(pid, 'fold') } catch (e) { /* 忽略 */ }
       }
-      // 退出玩家直接移除（不从 room.players 留下导致幽灵占位）
+      room.removePlayer(pid)
+    } else if (player && player.status === 'out') {
+      // out 状态玩家超时，直接移除
       room.removePlayer(pid)
     }
     manager.playerRoom.delete(pid)
