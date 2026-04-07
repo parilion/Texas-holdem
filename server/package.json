@@ -3,7 +3,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "print:dead-money": "node scripts/print-dead-money-scenarios.mjs"
   },
   "jest": {
     "transform": {},

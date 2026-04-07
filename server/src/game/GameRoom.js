@@ -229,14 +229,15 @@ export default class GameRoom {
         break
       }
       case 'allin': {
-        // 有效投入上限：不超过声明的 allin 金额，也不超过任意对手的最大可投入总额
+        // 有效投入上限：默认投入全部剩余筹码；若声明 amount，则最多投入 amount
         const opponents = this.players.filter(
           p => p.id !== player.id && (p.status === 'active' || p.status === 'allin')
         )
+        const requestedAllIn = amount > 0 ? amount : player.chips
         const maxOpponentTotal = opponents.length > 0
           ? Math.max(...opponents.map(p => p.bet + p.chips))
           : player.bet + player.chips
-        const effectiveTotal = Math.min(amount, maxOpponentTotal)
+        const effectiveTotal = Math.min(player.bet + requestedAllIn, maxOpponentTotal)
         const allInAmount = Math.max(0, effectiveTotal - player.bet)
 
         this.pot += allInAmount
@@ -376,10 +377,15 @@ export default class GameRoom {
     this.turnTimer = null
     this.phase = 'SHOWDOWN'
     const activePlayers = this.players.filter(p => p.status === 'active' || p.status === 'allin')
+    const contributionById = new Map(
+      this.players.map(player => [player.id, this._getRoundContribution(player)])
+    )
+    const potLayers = this._buildPotLayers(contributionById, activePlayers)
 
     let winners = []
     let showdownPlayers = []
     let winningCommunityCards = []
+    let evaluated = []
 
     if (activePlayers.length === 1) {
       // 弃牌获胜：不展示手牌对比，公共牌全部正常显示（不置灰）
@@ -387,7 +393,7 @@ export default class GameRoom {
       winningCommunityCards = [...this.communityCards]
     } else {
       const allCards = this.communityCards
-      const evaluated = activePlayers.map(p => ({
+      evaluated = activePlayers.map(p => ({
         player: p,
         hand: HandEvaluator.evaluate([...p.holeCards, ...allCards])
       }))
@@ -422,36 +428,45 @@ export default class GameRoom {
       )
     }
 
-    // 退还超额筹码（单赢家场景才需要）
-    if (winners.length === 1) {
-      const winner = winners[0]
-      const winnerContrib = (winner.chipsBefore ?? winner.chips) - winner.chips
-      this.players.forEach(p => {
-        if (p.id === winner.id) return
-        if (p.status === 'out') return
-        const pContrib = (p.chipsBefore ?? p.chips) - p.chips
-        const excess = Math.max(0, pContrib - winnerContrib)
-        if (excess > 0) {
-          p.chips += excess
-          this.pot -= excess
-          if (this.pots.length > 0) this.pots[0].amount -= excess
-        }
-      })
-      winners[0].chips += this.pot
-      if (this.pots.length > 0) this.pots[0].amount = this.pot
+    // 主池/边池分配
+    const totalPot = this.pot
+    if (activePlayers.length === 1) {
+      winners[0].chips += totalPot
     } else {
-      // Split Pot：均分底池，奇数筹码给第一位赢家
-      const share = Math.floor(this.pot / winners.length)
-      winners.forEach(w => { w.chips += share })
-      const remainder = this.pot % winners.length
-      if (remainder > 0) winners[0].chips += remainder
-      if (this.pots.length > 0) this.pots[0].amount = this.pot
+      const evaluatedById = new Map(evaluated.map(e => [e.player.id, e.hand]))
+      potLayers.forEach(layer => {
+        const contenders = activePlayers.filter(p => layer.eligiblePlayers.has(p.id))
+        if (contenders.length === 0) return
+        if (contenders.length === 1) {
+          contenders[0].chips += layer.amount
+          return
+        }
+
+        let bestHand = null
+        let layerWinners = []
+        contenders.forEach(player => {
+          const hand = evaluatedById.get(player.id)
+          if (!hand) return
+          if (!bestHand || HandEvaluator.compare(hand, bestHand) > 0) {
+            bestHand = hand
+            layerWinners = [player]
+          } else if (HandEvaluator.compare(hand, bestHand) === 0) {
+            layerWinners.push(player)
+          }
+        })
+
+        if (layerWinners.length === 0) return
+        const share = Math.floor(layer.amount / layerWinners.length)
+        layerWinners.forEach(winner => { winner.chips += share })
+        const remainder = layer.amount % layerWinners.length
+        if (remainder > 0) layerWinners[0].chips += remainder
+      })
     }
 
     const winner = winners[0]
-    const winAmount = this.pot
+    const winAmount = totalPot
     this.pot = 0
-    if (this.pots.length > 0) this.pots[0].amount = 0
+    this.pots = []
 
     const playerResults = this.players.map(p => ({
       id: p.id,
@@ -578,5 +593,40 @@ export default class GameRoom {
 
   _notifyChange(extra = {}) {
     if (this.onStateChange) this.onStateChange(extra)
+  }
+
+  _getRoundContribution(player) {
+    const chipsBefore = Number.isFinite(player.chipsBefore) ? player.chipsBefore : player.chips
+    return Math.max(0, chipsBefore - player.chips)
+  }
+
+  _buildPotLayers(contributionById, activePlayers) {
+    const levels = [...new Set(
+      activePlayers
+        .map(player => contributionById.get(player.id) || 0)
+        .filter(amount => amount > 0)
+    )].sort((a, b) => a - b)
+
+    const layers = []
+    let previous = 0
+
+    levels.forEach(level => {
+      const amount = [...contributionById.values()].reduce((sum, contribution) => {
+        const capped = Math.min(contribution, level)
+        return sum + Math.max(0, capped - previous)
+      }, 0)
+      previous = level
+      if (amount <= 0) return
+
+      const eligiblePlayers = new Set(
+        activePlayers
+          .filter(player => (contributionById.get(player.id) || 0) >= level)
+          .map(player => player.id)
+      )
+
+      layers.push({ amount, eligiblePlayers })
+    })
+
+    return layers
   }
 }

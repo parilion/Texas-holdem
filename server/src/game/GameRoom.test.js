@@ -272,6 +272,19 @@ test('allin caps at correct amount based on opponents minimum', () => {
   expect(cCallAmount).toBe(aAllIn) // capped to A's all-in
 })
 
+test('allin without amount uses full remaining chips', () => {
+  const room = makeRoom(2)
+  startGame(room)
+
+  const actingPlayer = room.players[room.currentPlayerIndex]
+  const chipsBefore = actingPlayer.chips
+  room.handleAction(actingPlayer.id, 'allin')
+
+  expect(chipsBefore).toBeGreaterThan(0)
+  expect(actingPlayer.chips).toBe(0)
+  expect(actingPlayer.status).toBe('allin')
+})
+
 test('side pot created when short stack calls longer stack allin', () => {
   const room = new GameRoom('TEST01')
   room.addPlayer('p0', 'A') // 1000
@@ -311,6 +324,96 @@ test('side pot created when short stack calls longer stack allin', () => {
 
   // For now, just verify pots array has entries
   expect(room.pots.length).toBeGreaterThan(0)
+})
+
+test('showdown distributes main pot and side pot separately', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C')
+
+  room.players.forEach(player => {
+    player.chipsBefore = 400
+    player.bet = 0
+  })
+
+  const a = room.players[0]
+  const b = room.players[1]
+  const c = room.players[2]
+
+  // Contribution: A=400, B=400, C=200
+  a.chips = 0
+  b.chips = 0
+  c.chips = 200
+  a.status = 'allin'
+  b.status = 'allin'
+  c.status = 'active'
+
+  // Hand strength: C > A > B
+  a.holeCards = [{ suit: 'H', rank: 'K' }, { suit: 'D', rank: 'K' }]
+  b.holeCards = [{ suit: 'H', rank: 'T' }, { suit: 'D', rank: 'T' }]
+  c.holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'D', rank: 'A' }]
+  room.communityCards = [
+    { suit: 'S', rank: '2' },
+    { suit: 'C', rank: '7' },
+    { suit: 'D', rank: '9' },
+    { suit: 'S', rank: 'J' },
+    { suit: 'C', rank: 'Q' },
+  ]
+  room.pot = 1000
+  room.phase = 'RIVER'
+
+  room._endRound()
+
+  expect(c.chips).toBe(800) // main pot 600
+  expect(a.chips).toBe(400) // side pot 400
+  expect(b.chips).toBe(0)
+  expect(room.pot).toBe(0)
+})
+
+test('dead money merged into eligible pot and odd chip follows seat order', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C')
+
+  room.players.forEach(player => {
+    player.chipsBefore = 400
+    player.bet = 0
+  })
+
+  const a = room.players[0]
+  const b = room.players[1]
+  const c = room.players[2]
+
+  // Contribution: A=100(active), B=100(active), C=10(folded, dead money)
+  a.chips = 300
+  b.chips = 300
+  c.chips = 390
+  a.status = 'active'
+  b.status = 'active'
+  c.status = 'folded'
+
+  // A and B tie exactly
+  a.holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'D', rank: 'K' }]
+  b.holeCards = [{ suit: 'S', rank: 'A' }, { suit: 'C', rank: 'K' }]
+  c.holeCards = [{ suit: 'H', rank: '2' }, { suit: 'D', rank: '3' }]
+  room.communityCards = [
+    { suit: 'H', rank: '9' },
+    { suit: 'D', rank: '9' },
+    { suit: 'S', rank: '5' },
+    { suit: 'C', rank: '7' },
+    { suit: 'H', rank: 'J' },
+  ]
+  room.pot = 210 // includes folded dead money 10
+  room.phase = 'RIVER'
+
+  room._endRound()
+
+  // Split 210 => 105/105, tied winners in seat order, no side pot
+  expect(a.chips).toBe(405)
+  expect(b.chips).toBe(405)
+  expect(c.chips).toBe(390)
 })
 
 test('allin and side pot calculation', () => {
@@ -356,4 +459,214 @@ test('allin and side pot calculation', () => {
 
   // Verify game ends correctly
   expect(['RIVER', 'SHOWDOWN'].includes(room.phase)).toBe(true)
+})
+
+test('fixed board with multiple side pots distributes each layer independently', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C')
+  room.addPlayer('p3', 'D')
+
+  room.players.forEach(player => {
+    player.chipsBefore = 500
+    player.bet = 0
+    player.status = 'allin'
+  })
+
+  const a = room.players[0]
+  const b = room.players[1]
+  const c = room.players[2]
+  const d = room.players[3]
+
+  // Contributions:
+  // A=400, B=300, C=200, D=100 (total 1000)
+  // Pot layers:
+  // L1 400 eligible A/B/C/D
+  // L2 300 eligible A/B/C
+  // L3 200 eligible A/B
+  // L4 100 eligible A
+  a.chips = 100
+  b.chips = 200
+  c.chips = 300
+  d.chips = 400
+
+  // Hand ranking on fixed board: D > C > B > A
+  a.holeCards = [{ suit: 'H', rank: 'K' }, { suit: 'D', rank: '5' }]
+  b.holeCards = [{ suit: 'S', rank: 'K' }, { suit: 'C', rank: '6' }]
+  c.holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'D', rank: '8' }]
+  d.holeCards = [{ suit: 'S', rank: 'A' }, { suit: 'C', rank: 'K' }]
+  room.communityCards = [
+    { suit: 'H', rank: '2' },
+    { suit: 'D', rank: '4' },
+    { suit: 'S', rank: '9' },
+    { suit: 'C', rank: 'J' },
+    { suit: 'H', rank: 'Q' },
+  ]
+  room.pot = 1000
+  room.phase = 'RIVER'
+
+  room._endRound()
+
+  // L1 -> D +400, L2 -> C +300, L3 -> B +200, L4 -> A +100
+  expect(a.chips).toBe(200)
+  expect(b.chips).toBe(400)
+  expect(c.chips).toBe(600)
+  expect(d.chips).toBe(800)
+  expect(room.pot).toBe(0)
+})
+
+test('odd chip in a side pot goes to earliest seat among tied winners', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C')
+  room.addPlayer('p3', 'D')
+
+  room.players.forEach(player => {
+    player.chipsBefore = 500
+    player.bet = 0
+  })
+
+  const a = room.players[0]
+  const b = room.players[1]
+  const c = room.players[2]
+  const d = room.players[3]
+
+  // Contributions:
+  // A=400, B=400, C=400, D=199 (total 1399)
+  // L1: 796 eligible A/B/C/D -> D (best)
+  // L2: 603 eligible A/B/C -> A/B/C tie, share=201 each
+  a.chips = 100
+  b.chips = 100
+  c.chips = 100
+  d.chips = 301
+  a.status = 'allin'
+  b.status = 'allin'
+  c.status = 'allin'
+  d.status = 'allin'
+
+  // D best; A/B/C exact tie among themselves
+  a.holeCards = [{ suit: 'S', rank: 'A' }, { suit: 'S', rank: 'K' }]
+  b.holeCards = [{ suit: 'H', rank: 'A' }, { suit: 'H', rank: 'K' }]
+  c.holeCards = [{ suit: 'D', rank: 'A' }, { suit: 'D', rank: 'K' }]
+  d.holeCards = [{ suit: 'C', rank: 'Q' }, { suit: 'C', rank: 'J' }]
+  room.communityCards = [
+    { suit: 'C', rank: 'A' },
+    { suit: 'C', rank: 'K' },
+    { suit: 'C', rank: '5' },
+    { suit: 'H', rank: '2' },
+    { suit: 'D', rank: '9' },
+  ]
+  room.pot = 1399
+  room.phase = 'RIVER'
+
+  room._endRound()
+
+  expect(a.chips).toBe(301)
+  expect(b.chips).toBe(301)
+  expect(c.chips).toBe(301)
+  expect(d.chips).toBe(1097)
+  expect(room.pot).toBe(0)
+})
+
+function setupDeadMoneyAllInScenario() {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C')
+  room.addPlayer('p3', 'D')
+
+  const a = room.players[0]
+  const b = room.players[1]
+  const c = room.players[2]
+  const d = room.players[3]
+
+  room.players.forEach(player => {
+    player.chipsBefore = 500
+    player.bet = 0
+  })
+
+  // 场景约束：
+  // A 先下注后面对 B all-in 选择弃牌（A 投入作为死钱）
+  // C 筹码高于 B 选择 all-in；D 筹码低于 C 但高于 A 也 all-in
+  // 投入额：A=120(fold), B=200(allin), C=350(allin), D=260(allin)
+  a.chips = 380
+  b.chips = 300
+  c.chips = 150
+  d.chips = 240
+  a.status = 'folded'
+  b.status = 'allin'
+  c.status = 'allin'
+  d.status = 'allin'
+
+  room.pot = 930
+  room.phase = 'RIVER'
+  room.communityCards = [
+    { suit: 'C', rank: '2' },
+    { suit: 'D', rank: '7' },
+    { suit: 'H', rank: '9' },
+    { suit: 'S', rank: 'J' },
+    { suit: 'D', rank: '4' },
+  ]
+
+  return { room, a, b, c, d }
+}
+
+test('4 players: A folds into dead money, B wins main pot while C wins higher side pots', () => {
+  const { room, a, b, c, d } = setupDeadMoneyAllInScenario()
+
+  // A 牌力最强但已弃牌，不能参与奖池分配
+  a.holeCards = [{ suit: 'S', rank: 'A' }, { suit: 'H', rank: 'A' }]
+  b.holeCards = [{ suit: 'C', rank: 'K' }, { suit: 'H', rank: 'K' }]
+  c.holeCards = [{ suit: 'S', rank: 'T' }, { suit: 'C', rank: 'T' }]
+  d.holeCards = [{ suit: 'C', rank: '8' }, { suit: 'H', rank: '8' }]
+
+  room._endRound()
+
+  // 奖池拆分：
+  // 主池 720 (A/B/C/D 到 200) -> B
+  // 边池1 120 (C/D 的 200->260) -> C
+  // 边池2 90  (仅 C 的 260->350) -> C
+  expect(a.chips).toBe(380)   // 弃牌，无分配
+  expect(b.chips).toBe(1020)  // 300 + 720
+  expect(c.chips).toBe(360)   // 150 + 120 + 90
+  expect(d.chips).toBe(240)
+  expect(room.pot).toBe(0)
+})
+
+test('4 players: A folds into dead money, C wins all eligible pots', () => {
+  const { room, a, b, c, d } = setupDeadMoneyAllInScenario()
+
+  a.holeCards = [{ suit: 'C', rank: '4' }, { suit: 'H', rank: '4' }]
+  b.holeCards = [{ suit: 'C', rank: 'K' }, { suit: 'H', rank: 'K' }]
+  c.holeCards = [{ suit: 'S', rank: 'A' }, { suit: 'H', rank: 'A' }]
+  d.holeCards = [{ suit: 'C', rank: 'Q' }, { suit: 'H', rank: 'Q' }]
+
+  room._endRound()
+
+  // C 对主池与所有边池都有资格，且牌力最强
+  expect(a.chips).toBe(380)
+  expect(b.chips).toBe(300)
+  expect(c.chips).toBe(1080) // 150 + 930
+  expect(d.chips).toBe(240)
+  expect(room.pot).toBe(0)
+})
+
+test('4 players: A folds into dead money, D wins lower layers while C wins top side pot', () => {
+  const { room, a, b, c, d } = setupDeadMoneyAllInScenario()
+
+  a.holeCards = [{ suit: 'C', rank: '4' }, { suit: 'H', rank: '4' }]
+  b.holeCards = [{ suit: 'C', rank: 'K' }, { suit: 'H', rank: 'K' }]
+  c.holeCards = [{ suit: 'C', rank: 'Q' }, { suit: 'H', rank: 'Q' }]
+  d.holeCards = [{ suit: 'S', rank: 'A' }, { suit: 'H', rank: 'A' }]
+
+  room._endRound()
+
+  // 主池 720 + 边池1 120 -> D；边池2 90 -> C（仅 C 具资格）
+  expect(a.chips).toBe(380)
+  expect(b.chips).toBe(300)
+  expect(c.chips).toBe(240)   // 150 + 90
+  expect(d.chips).toBe(1080)  // 240 + 720 + 120
+  expect(room.pot).toBe(0)
 })
