@@ -272,6 +272,34 @@ test('allin caps at correct amount based on opponents minimum', () => {
   expect(cCallAmount).toBe(aAllIn) // capped to A's all-in
 })
 
+test('minimum re-raise follows last raise increment (not fixed +4)', () => {
+  const room = makeRoom(3)
+  startGame(room)
+
+  // Preflop first action: raise from 4 to 10 (increment 6)
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'raise', 10)
+
+  // Next player minimum legal re-raise should be 16 (= 10 + 6), not 20
+  const next = room.players[room.currentPlayerIndex]
+  expect(() => room.handleAction(next.id, 'raise', 14)).toThrow('最小加注额为 16')
+  expect(() => room.handleAction(next.id, 'raise', 16)).not.toThrow()
+})
+
+test('public state exposes minRaiseTotal and minRaiseIncrement', () => {
+  const room = makeRoom(3)
+  startGame(room)
+
+  let state = room.getPublicState('player0')
+  expect(state.minRaiseIncrement).toBe(4)
+  expect(state.minRaiseTotal).toBe(8)
+
+  room.handleAction(room.players[room.currentPlayerIndex].id, 'raise', 10)
+  state = room.getPublicState('player1')
+  expect(state.currentBet).toBe(10)
+  expect(state.minRaiseIncrement).toBe(6)
+  expect(state.minRaiseTotal).toBe(16)
+})
+
 test('allin without amount uses full remaining chips', () => {
   const room = makeRoom(2)
   startGame(room)
@@ -669,4 +697,48 @@ test('4 players: A folds into dead money, D wins lower layers while C wins top s
   expect(c.chips).toBe(240)   // 150 + 90
   expect(d.chips).toBe(1080)  // 240 + 720 + 120
   expect(room.pot).toBe(0)
+})
+
+test.skip('repro P1: folded overcall above all active levels causes chip conservation break', () => {
+  const room = new GameRoom('TEST01')
+  room.addPlayer('p0', 'A')
+  room.addPlayer('p1', 'B')
+  room.addPlayer('p2', 'C')
+
+  const a = room.players[0]
+  const b = room.players[1]
+  const c = room.players[2]
+
+  room.players.forEach(player => {
+    player.chipsBefore = 500
+    player.bet = 0
+  })
+
+  // Contribution: A=100(active), B=100(active), C=300(folded)
+  a.chips = 400
+  b.chips = 400
+  c.chips = 200
+  a.status = 'active'
+  b.status = 'active'
+  c.status = 'folded'
+  room.pot = 500
+  room.phase = 'RIVER'
+
+  // A > B on board
+  a.holeCards = [{ suit: 'S', rank: 'A' }, { suit: 'H', rank: 'K' }]
+  b.holeCards = [{ suit: 'D', rank: 'Q' }, { suit: 'C', rank: 'J' }]
+  c.holeCards = [{ suit: 'S', rank: '2' }, { suit: 'H', rank: '3' }]
+  room.communityCards = [
+    { suit: 'C', rank: '4' },
+    { suit: 'D', rank: '7' },
+    { suit: 'H', rank: '9' },
+    { suit: 'S', rank: 'T' },
+    { suit: 'D', rank: '5' },
+  ]
+
+  room._endRound()
+
+  // 正确应保持总筹码守恒：500 * 3 = 1500
+  const totalChips = room.players.reduce((sum, p) => sum + p.chips, 0)
+  expect(totalChips).toBe(1500)
 })

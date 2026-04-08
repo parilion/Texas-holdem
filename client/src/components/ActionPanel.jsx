@@ -7,8 +7,7 @@ export default function ActionPanel({ gameState, myId, onAction }) {
   const canCheck = isMyTurn && (gameState.currentBet === 0 || me?.bet === gameState.currentBet)
   const callAmount = gameState ? Math.min(gameState.currentBet - (me?.bet || 0), me?.chips || 0) : 0
 
-  const minRaiseTotal = Math.max(
-    (gameState?.currentBet || 0) * 2,
+  const minRaiseTotal = gameState?.minRaiseTotal ?? Math.max(
     (gameState?.currentBet || 0) + BIG_BLIND,
     BIG_BLIND
   )
@@ -19,14 +18,9 @@ export default function ActionPanel({ gameState, myId, onAction }) {
   const [selectedPct, setSelectedPct] = useState(100)
 
   useEffect(() => {
-    const newMin = Math.max(
-      (gameState?.currentBet || 0) * 2,
-      (gameState?.currentBet || 0) + BIG_BLIND,
-      BIG_BLIND
-    )
-    setRaiseAmount(myTotal)
+    setRaiseAmount(Math.min(Math.max(minRaiseTotal, 0), myTotal))
     setSelectedPct(100)
-  }, [gameState?.currentBet, myTotal])
+  }, [gameState?.currentBet, gameState?.minRaiseTotal, myTotal, minRaiseTotal])
 
   // 能否加注：只要玩家总筹码超过当前注即可（允许 all-in 式再加注）
   const canRaise = me && myTotal > (gameState?.currentBet || 0)

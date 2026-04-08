@@ -17,6 +17,7 @@ export default class GameRoom {
     this.pot = 0
     this.pots = [] // [{ amount, eligiblePlayers? }] - side pot 系统
     this.currentBet = 0
+    this.minRaiseIncrement = BIG_BLIND
     this.currentPlayerIndex = 0
     this.dealer = 0
     this.deck = null
@@ -120,6 +121,7 @@ export default class GameRoom {
     this.pot = 0
     this.pots = [{ amount: 0 }]
     this.currentBet = BIG_BLIND
+    this.minRaiseIncrement = BIG_BLIND
     this.lastAggressor = -1 // 重置
 
     // 重置玩家状态（'out' 玩家跳过，保持淘汰状态）
@@ -207,12 +209,13 @@ export default class GameRoom {
         break
       }
       case 'raise': {
-        const minRaiseAmount = this.currentBet + 4
+        const minRaiseAmount = this.currentBet + this.minRaiseIncrement
         // 只有筹码足够的情况下才验证最小加注额
         if (player.bet + player.chips >= minRaiseAmount && amount < minRaiseAmount) {
           throw new Error(`最小加注额为 ${minRaiseAmount}`)
         }
         if (amount <= this.currentBet) throw new Error('加注金额必须大于当前注')
+        const prevCurrentBet = this.currentBet
         const toAdd = Math.min(amount - player.bet, player.chips)
         player.chips -= toAdd
         this.pot += toAdd
@@ -221,6 +224,10 @@ export default class GameRoom {
         // ✅ 只有 player.bet 超过 currentBet 才更新，防止降低
         if (player.bet > this.currentBet) {
           this.currentBet = player.bet
+          const raiseIncrement = this.currentBet - prevCurrentBet
+          if (raiseIncrement >= this.minRaiseIncrement) {
+            this.minRaiseIncrement = raiseIncrement
+          }
           this.lastAggressor = this.currentPlayerIndex
           this.players.forEach(p => { if (p.status === 'active') p.hasActed = false })
           player.hasActed = true
@@ -333,6 +340,7 @@ export default class GameRoom {
       }
     })
     this.currentBet = 0
+    this.minRaiseIncrement = BIG_BLIND
     this.lastAggressor = -1
 
     const phaseOrder = ['PREFLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN']
@@ -529,6 +537,7 @@ export default class GameRoom {
     this.pot = 0
     this.pots = []
     this.currentBet = 0
+    this.minRaiseIncrement = BIG_BLIND
     this.lastAggressor = -1
     this.deck = null
     this.currentPlayerIndex = 0
@@ -576,6 +585,8 @@ export default class GameRoom {
       pot: this.pot,
       communityCards: this.communityCards,
       currentBet: this.currentBet,
+      minRaiseTotal: this.currentBet + this.minRaiseIncrement,
+      minRaiseIncrement: this.minRaiseIncrement,
       currentPlayerIndex: this.currentPlayerIndex,
       dealer: this.dealer,
       players: this.players.map(p => ({
